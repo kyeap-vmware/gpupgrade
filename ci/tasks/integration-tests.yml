@@ -1,0 +1,16 @@
+PLATFORM: linux
+
+image_resource:
+  type: docker-image
+  source:
+    repository: pivotaldata/centos-gpdb-dev
+    tag: "6-gcc6.2-llvm3.7"
+
+inputs:
+  - name: gpupgrade
+    path: go/src/github.com/greenplum-db/gpupgrade
+  - name: gpdb_src
+  - name: bin_gpdb
+
+run:
+  path: go/src/github.com/greenplum-db/gpupgrade/ci/scripts/integration-tests.bash

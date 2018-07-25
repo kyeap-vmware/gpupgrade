@@ -13,10 +13,26 @@ resources:
     uri: {{gpupgrade-git-remote}}
     branch: {{gpupgrade-git-branch}}
 
+- name: gpdb_src
+  type: git
+  source:
+    uri: https://github.com/greenplum-db/gpdb
+    branch: master
+
 - name: slack-alert
   type: slack-notification
   source:
     url: {{cm_webhook_url}}
+
+- name: bin_gpdb_centos6
+  type: s3
+  source:
+    access_key_id: {{bucket-access-key-id}}
+    bucket: {{bucket-name}}
+    region_name: {{aws-region}}
+    secret_access_key: {{bucket-secret-access-key}}
+    versioned_file: {{bin_gpdb_centos_versioned_file}}
+
 
 jobs:
 - name: unit-tests
@@ -26,6 +42,21 @@ jobs:
     trigger: true
   - task: unit-tests
     file: gpupgrade/ci/tasks/unit-tests.yml
+    on_failure:
+      do:
+      - *slack_alert
+
+- name: integration-tests
+  plan:
+  - aggregate:
+    - get: gpupgrade
+      trigger: true
+    - get: gpdb_src
+    - get: bin_gpdb
+      resource: bin_gpdb_centos6
+      trigger: true
+  - task: integration-tests
+    file: gpupgrade/ci/tasks/integration-tests.yml
     on_failure:
       do:
       - *slack_alert

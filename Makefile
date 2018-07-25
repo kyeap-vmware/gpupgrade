@@ -21,7 +21,7 @@ GOFLAGS := -gcflags="all=-N -l"
 depend:
 		go get github.com/onsi/ginkgo/ginkgo
 		go get github.com/golang/dep/cmd/dep
-		dep ensure
+		dep ensure -v
 
 depend-dev: depend
 		go get -u github.com/golang/protobuf/protoc-gen-go
@@ -117,7 +117,7 @@ clean:
 # dependency on this marker to run a `dep ensure` (if necessary) before your
 # recipe is run.
 .Gopkg.updated: Gopkg.lock Gopkg.toml
-	dep ensure
+	dep ensure -v
 	touch $@
 
 # You can override these from the command line.
@@ -142,6 +142,8 @@ set-pipeline:
 	fly -t $(FLY_TARGET) set-pipeline -p $(PIPELINE_NAME) \
 		-c ci/pipeline.yml \
 		-l ~/workspace/continuous-integration/secrets/$(SECRETS_FILE) \
+		-l ~/workspace/continuous-integration/secrets/gpdb_common-ci-secrets.yml \
+		-l ~/workspace/continuous-integration/secrets/gpdb_master-ci-secrets.yml
 		-v gpupgrade-git-remote=$(GIT_URI) \
 		-v gpupgrade-git-branch=$(BRANCH)
 
