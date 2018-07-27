@@ -28,10 +28,10 @@ resources:
   type: s3
   source:
     access_key_id: {{bucket-access-key-id}}
-    bucket: {{bucket-name}}
+    bucket: {{gpdb-stable-builds-bucket-name}}
     region_name: {{aws-region}}
     secret_access_key: {{bucket-secret-access-key}}
-    versioned_file: {{bin_gpdb_centos_versioned_file}}
+    versioned_file: release_candidates/bin_gpdb_centos6/gpdb6/debug/bin_gpdb.tar.gz
 
 
 jobs:
