@@ -35,6 +35,16 @@ resources:
 
 
 jobs:
+- name: build
+  plan:
+  - get: gpupgrade_src
+    trigger: true
+  - task: build
+    file: gpupgrade_src/ci/tasks/build.yml
+    on_failure:
+      do:
+      - *slack_alert
+
 - name: unit-tests
   plan:
   - get: gpupgrade_src
