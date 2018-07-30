@@ -7,10 +7,10 @@ image_resource:
     tag: "6-gcc6.2-llvm3.7"
 
 inputs:
-  - name: gpupgrade
-    path: go/src/github.com/greenplum-db/gpupgrade
-  - name: gpdb_src
-  - name: bin_gpdb
+- name: gpupgrade_src
+  path: go/src/github.com/greenplum-db/gpupgrade
+- name: gpdb_src
+- name: bin_gpdb
 
 run:
   path: go/src/github.com/greenplum-db/gpupgrade/ci/scripts/integration-tests.bash

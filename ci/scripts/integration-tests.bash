@@ -1,4 +1,4 @@
-#!/bin/bash -l
+#!/bin/bash
 
 set -ex
 
@@ -13,9 +13,11 @@ time make_cluster
 
 chown -R gpadmin:gpadmin go
 
-su gpadmin -c 'export GOPATH=$PWD/go && \
-export PATH=$GOPATH/bin:$PATH && \
-source /usr/local/greenplum-db-devel/greenplum_path.sh && \
-source gpdb_src/gpAux/gpdemo/gpdemo-env.sh && \
-make -C $GOPATH/src/github.com/greenplum-db/gpupgrade integration'
+su gpadmin <<'EOF'
+export GOPATH=$PWD/go
+export PATH=$GOPATH/bin:$PATH
+source /usr/local/greenplum-db-devel/greenplum_path.sh
+source gpdb_src/gpAux/gpdemo/gpdemo-env.sh
+make -C $GOPATH/src/github.com/greenplum-db/gpupgrade integration
+EOF
 

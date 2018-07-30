@@ -37,11 +37,10 @@ resources:
 jobs:
 - name: unit-tests
   plan:
-  - get: gpupgrade
-    resource: gpupgrade_src
+  - get: gpupgrade_src
     trigger: true
   - task: unit-tests
-    file: gpupgrade/ci/tasks/unit-tests.yml
+    file: gpupgrade_src/ci/tasks/unit-tests.yml
     on_failure:
       do:
       - *slack_alert
@@ -49,14 +48,14 @@ jobs:
 - name: integration-tests
   plan:
   - aggregate:
-    - get: gpupgrade
+    - get: gpupgrade_src
       trigger: true
     - get: gpdb_src
     - get: bin_gpdb
       resource: bin_gpdb_centos6
       trigger: true
   - task: integration-tests
-    file: gpupgrade/ci/tasks/integration-tests.yml
+    file: gpupgrade_src/ci/tasks/integration-tests.yml
     on_failure:
       do:
       - *slack_alert

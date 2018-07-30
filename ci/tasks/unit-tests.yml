@@ -7,7 +7,7 @@ image_resource:
     tag: '1.10.2'
 
 inputs:
-- name: gpupgrade
+- name: gpupgrade_src
   path: ../../../go/src/github.com/greenplum-db/gpupgrade
 
 run:
