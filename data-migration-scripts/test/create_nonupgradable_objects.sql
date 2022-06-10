@@ -120,7 +120,7 @@ CREATE TABLE partition_table_partitioned_by_name_type(a int, b name) PARTITION B
 DROP TABLE IF EXISTS table_distributed_by_name_type;
 CREATE TABLE table_distributed_by_name_type(a int, b name) DISTRIBUTED BY (b);
 INSERT INTO table_distributed_by_name_type VALUES (1,'z'),(2,'x');
--- create table / views with name dataype
+-- create table / views with name datatype
 CREATE TABLE t1_with_name(a name, b name) DISTRIBUTED RANDOMLY;
 INSERT INTO t1_with_name SELECT 'aaa', 'bbb';
 CREATE TABLE t2_with_name(a int, b name) DISTRIBUTED RANDOMLY;
@@ -205,9 +205,10 @@ CREATE TABLE name_inherits (
     state      char(2)
 ) INHERITS (table_with_name_tsquery);
 
--- view on a view on a name column
+-- view on a view on a name column with owner different than the underlying table
 DROP VIEW IF EXISTS v3_on_v2_recursive;
 CREATE VIEW v3_on_v2_recursive AS SELECT * FROM v2_on_t2_with_name;
+ALTER TABLE v3_on_v2_recursive OWNER TO test_role;
 
 -- Third level recursive view on a name column
 DROP VIEW IF EXISTS v4_on_v3_recursive;
