@@ -168,12 +168,8 @@ func initialize() *cobra.Command {
 				initializeSubsteps, logdir, configPath,
 				sourcePort, sourceGPHome, targetGPHome, mode, diskFreeRatio, useHbaHostnames, dynamicLibraryPath, ports, hubPort, agentPort)
 
-			st, err := commanders.NewStep(idl.Step_initialize,
-				&step.BufferedStreams{},
-				verbose,
-				nonInteractive,
-				confirmationText,
-			)
+
+			st, err := commanders.Begin(idl.Step_initialize, verbose, nonInteractive, confirmationText)
 			if err != nil {
 				return err
 			}
