@@ -104,6 +104,8 @@ enum Substep {
     execute_revert_data_migration_scripts = 41;
     create_backupdirs = 42;
     delete_backupdir = 43;
+    verify_gpdb_versions = 45;
+    verify_gpupgrade_is_installed_across_all_hosts = 46;
 }
 
 enum Status {
