@@ -46,7 +46,7 @@ func TestApplyDataMigrationScripts(t *testing.T) {
 	})
 
 	t.Run("prints stats specific message for stats phase", func(t *testing.T) {
-		d := commanders.BufferStandardDescriptors(t)
+		d := BufferStandardDescriptors(t)
 
 		currentScriptDir := testutils.GetTempDir(t, "")
 		defer testutils.MustRemoveAll(t, currentScriptDir)
@@ -103,7 +103,7 @@ func TestApplyDataMigrationScripts(t *testing.T) {
 	})
 
 	t.Run("errors when applying script sub directory fails", func(t *testing.T) {
-		commanders.SetPsqlFileCommand(exectest.NewCommand(commanders.FailedMain))
+		commanders.SetPsqlFileCommand(exectest.NewCommand(FailedMain))
 		defer commanders.ResetPsqlFileCommand()
 
 		currentScriptDir := testutils.GetTempDir(t, "")
@@ -185,7 +185,7 @@ func TestApplyDataMigrationScriptSubDir(t *testing.T) {
 	})
 
 	t.Run("only applies sql files", func(t *testing.T) {
-		commanders.SetPsqlFileCommand(exectest.NewCommand(commanders.SuccessScript))
+		commanders.SetPsqlFileCommand(exectest.NewCommand(SuccessScript))
 		defer commanders.ResetPsqlFileCommand()
 
 		fsys := fstest.MapFS{
@@ -199,13 +199,13 @@ func TestApplyDataMigrationScriptSubDir(t *testing.T) {
 			t.Errorf("unexpected err %#v", err)
 		}
 
-		if string(output) != commanders.SuccessScriptOutput {
-			t.Errorf("got output %q, want %q", output, commanders.SuccessScriptOutput)
+		if string(output) != SuccessScriptOutput {
+			t.Errorf("got output %q, want %q", output, SuccessScriptOutput)
 		}
 	})
 
 	t.Run("errors when applying sql file fails", func(t *testing.T) {
-		commanders.SetPsqlFileCommand(exectest.NewCommand(commanders.FailedMain))
+		commanders.SetPsqlFileCommand(exectest.NewCommand(FailedMain))
 		defer commanders.ResetPsqlFileCommand()
 
 		fsys := fstest.MapFS{
@@ -278,7 +278,7 @@ func TestApplyDataMigrationScriptsPrompt(t *testing.T) {
 	})
 
 	t.Run("does not prompt and applies all scripts when in non-interactive mode", func(t *testing.T) {
-		d := commanders.BufferStandardDescriptors(t)
+		d := BufferStandardDescriptors(t)
 
 		actualScriptDirs, err := commanders.ApplyDataMigrationScriptsPrompt(true, nil, currentScriptDir, fsys, phase)
 		if err != nil {
@@ -306,7 +306,7 @@ func TestApplyDataMigrationScriptsPrompt(t *testing.T) {
 	})
 
 	t.Run("returns error when selecting some scripts when user selects 's'ome with bad input", func(t *testing.T) {
-		d := commanders.BufferStandardDescriptors(t)
+		d := BufferStandardDescriptors(t)
 
 		reader := bufio.NewReader(strings.NewReader("s\nb\n"))
 		actualScriptDirs, err := commanders.ApplyDataMigrationScriptsPrompt(false, reader, currentScriptDir, fsys, phase)
@@ -379,7 +379,7 @@ func TestApplyDataMigrationScriptsPrompt(t *testing.T) {
 	})
 
 	t.Run("re-prompts when user enters 'b'ad input", func(t *testing.T) {
-		d := commanders.BufferStandardDescriptors(t)
+		d := BufferStandardDescriptors(t)
 
 		reader := bufio.NewReader(strings.NewReader("b\nq\n"))
 		actualScriptDirs, err := commanders.ApplyDataMigrationScriptsPrompt(false, reader, currentScriptDir, fsys, phase)
@@ -433,7 +433,7 @@ func TestApplyDataMigrationScriptsPrompt(t *testing.T) {
 	})
 
 	t.Run("when phase is initialize it displays warning and additional text on when to run scripts", func(t *testing.T) {
-		d := commanders.BufferStandardDescriptors(t)
+		d := BufferStandardDescriptors(t)
 
 		reader := bufio.NewReader(strings.NewReader("q\n"))
 		actualScriptDirs, err := commanders.ApplyDataMigrationScriptsPrompt(false, reader, currentScriptDir, fsys, phase)
@@ -487,7 +487,7 @@ func TestApplyDataMigrationScriptsPrompt(t *testing.T) {
 			filepath.Join(phase.String(), "partitioned_tables_indexes", "migration_postgres_recreate_partition_indexes_step_2.sql"): {},
 		}
 
-		d := commanders.BufferStandardDescriptors(t)
+		d := BufferStandardDescriptors(t)
 
 		reader := bufio.NewReader(strings.NewReader("q\n"))
 		actualScriptDirs, err := commanders.ApplyDataMigrationScriptsPrompt(false, reader, currentScriptDir, fsys, phase)
@@ -579,7 +579,7 @@ func TestSelectDataMigrationScriptsPrompt(t *testing.T) {
 	})
 
 	t.Run("prints error and continues when parsing selection fails", func(t *testing.T) {
-		d := commanders.BufferStandardDescriptors(t)
+		d := BufferStandardDescriptors(t)
 
 		fsys := fstest.MapFS{idl.Step_initialize.String(): {Mode: os.ModeDir}}
 		reader := bufio.NewReader(strings.NewReader("0.5\nq\n"))
@@ -627,7 +627,7 @@ func TestSelectDataMigrationScriptsPrompt(t *testing.T) {
 	})
 
 	t.Run("returns selected scripts when user continues", func(t *testing.T) {
-		d := commanders.BufferStandardDescriptors(t)
+		d := BufferStandardDescriptors(t)
 
 		reader := bufio.NewReader(strings.NewReader("0\ne\n1\nc\n"))
 		currentScriptDir := "/home/gpupgrade/data-migration/current"
@@ -673,7 +673,7 @@ func TestSelectDataMigrationScriptsPrompt(t *testing.T) {
 	})
 
 	t.Run("returns to parse selection when user 'edits' selection", func(t *testing.T) {
-		d := commanders.BufferStandardDescriptors(t)
+		d := BufferStandardDescriptors(t)
 
 		reader := bufio.NewReader(strings.NewReader("0\ne\n1\nq\n"))
 		scriptDirs, err := commanders.SelectDataMigrationScriptsPrompt(reader, currentScriptDir, fsys, phase)
@@ -717,7 +717,7 @@ func TestSelectDataMigrationScriptsPrompt(t *testing.T) {
 	})
 
 	t.Run("returns to parse selection when user makes a 'bad' selection", func(t *testing.T) {
-		d := commanders.BufferStandardDescriptors(t)
+		d := BufferStandardDescriptors(t)
 
 		reader := bufio.NewReader(strings.NewReader("0\nbad\nq\n"))
 		scriptDirs, err := commanders.SelectDataMigrationScriptsPrompt(reader, currentScriptDir, fsys, phase)
