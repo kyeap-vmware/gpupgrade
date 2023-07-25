@@ -38,7 +38,7 @@ func UpdateGpSegmentConfiguration(db *sql.DB, target *greenplum.Cluster) (err er
 		return xerrors.Errorf("begin transaction: %w", err)
 	}
 	defer func() {
-		err = commitOrRollback(tx, err)
+		err = CommitOrRollback(tx, err)
 	}()
 
 	for _, seg := range target.Primaries {
@@ -74,11 +74,11 @@ func updateSegment(tx *sql.Tx, seg greenplum.SegConfig) error {
 	return nil
 }
 
-// commitOrRollback either Commit()s or Rollback()s the passed transaction
+// CommitOrRollback either Commit()s or Rollback()s the passed transaction
 // depending on whether err is non-nil. It returns any error encountered during
 // the operation; in the case of a rollback error, the incoming error will be
 // combined with the new error.
-func commitOrRollback(tx *sql.Tx, err error) error {
+func CommitOrRollback(tx *sql.Tx, err error) error {
 	if err != nil {
 		if rErr := tx.Rollback(); rErr != nil {
 			rErr = xerrors.Errorf("roll back transaction: %w", rErr)

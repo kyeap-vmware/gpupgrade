@@ -38,7 +38,7 @@ func AddMirrorsToGpSegmentConfiguration(db *sql.DB, intermediate *greenplum.Clus
 		return xerrors.Errorf("begin transaction: %w", err)
 	}
 	defer func() {
-		err = commitOrRollback(tx, err)
+		err = CommitOrRollback(tx, err)
 	}()
 
 	for _, seg := range intermediate.Mirrors.ExcludingStandby() {
