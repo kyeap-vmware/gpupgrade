@@ -21,6 +21,7 @@ func TestConfig(t *testing.T) {
 
 	killServices(t)
 	initialize_stopBeforeClusterCreation(t)
+	defer revert(t)
 
 	t.Run("configuration can be read piece by piece", func(t *testing.T) {
 		actual := configShow(t, "--source-gphome")

@@ -96,6 +96,7 @@ stop-before-cluster-creation = true
 		if err != nil {
 			t.Fatalf("unexpected err: %v stderr: %q", err, output)
 		}
+		defer revert(t)
 
 		actual := configShow(t, "--source-gphome")
 		if actual != GPHOME_SOURCE {
@@ -121,6 +122,7 @@ stop-before-cluster-creation = true
 		if err != nil {
 			t.Fatalf("unexpected err: %v stderr: %q", err, output)
 		}
+		defer revert(t)
 
 		actual := configShow(t, "--source-gphome")
 		if actual != GPHOME_SOURCE {
@@ -144,6 +146,7 @@ stop-before-cluster-creation = true
 		if err == nil {
 			t.Errorf("expected error got nil")
 		}
+		defer revert(t)
 
 		expected := "Error: expected --verbose when using --pg-upgrade-verbose\n"
 		if string(output) != expected {

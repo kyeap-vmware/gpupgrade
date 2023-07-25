@@ -21,6 +21,7 @@ func TestServices(t *testing.T) {
 
 	killServices(t)
 	initialize_stopBeforeClusterCreation(t)
+	defer revert(t)
 
 	t.Run("kill-services stops hub and agents", func(t *testing.T) {
 		restartServices(t)
