@@ -46,7 +46,7 @@ integration:
 
 .PHONY: acceptance
 acceptance:
-	go test -count=1 -timeout 1h15m -v ./test/acceptance -skip "TestMigrationScripts|TestPgUpgrade"
+	go test -count=1 -timeout 1h15m -v ./test/acceptance -skip "TestPgUpgrade"
 
 # test runs all tests against the locally built gpupgrade binaries. Use -k to
 # continue after failures.
@@ -55,8 +55,7 @@ test check: unit integration acceptance
 
 .PHONY: pg-upgrade-tests
 pg-upgrade-tests:
-	go test -count=1 -v ./test/acceptance/ -run TestMigrationScripts
-	go test -count=1 -v ./test/acceptance/ -run TestPgUpgrade
+	go test -count=1 -timeout 20m -v ./test/acceptance/ -run TestPgUpgrade
 
 .PHONY: coverage
 coverage:
