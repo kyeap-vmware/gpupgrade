@@ -28,6 +28,16 @@ func Test_PgUpgrade_NonUpgradeable_Tests(t *testing.T) {
 	dir := "6-to-7"
 	if source.Version.Major == 5 {
 		dir = "5-to-6"
+
+		// Normally we would want to use 5X's pg_isolation2_regress when testing
+		// the contents on the 5X cluster, but it looks pretty much every single
+		// test breaks when making this change because the tests were written using
+		// 6X's pg_isolation2_regress on the 5X cluster. Since we're currently
+		// using GPDB6+ pg_isolation2_regress features like 'retcode' on the 5X
+		// cluster, attempting to switching back to using 5x pg_isolation2_regress
+		// on 5X cluster is too much trouble. We will make an exception and have 6X
+		// pg_isolation2_regress run on 5X cluster.
+		acceptance.ISOLATION2_PATH_SOURCE = acceptance.ISOLATION2_PATH_TARGET
 	}
 
 	testDir := filepath.Join(acceptance.MustGetRepoRoot(t), "test", "acceptance", "pg_upgrade", dir)
