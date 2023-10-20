@@ -27,6 +27,9 @@ func Test_PgUpgrade_Upgradeable_Tests(t *testing.T) {
 	migrationDir := testutils.GetTempDir(t, "migration")
 	defer testutils.MustRemoveAll(t, migrationDir)
 
+	acceptance.ISOLATION2_PATH_SOURCE = testutils.MustGetEnv("ISOLATION2_PATH_SOURCE")
+	acceptance.ISOLATION2_PATH_TARGET = testutils.MustGetEnv("ISOLATION2_PATH_TARGET")
+
 	source := acceptance.GetSourceCluster(t)
 	dir := "6-to-7"
 	if source.Version.Major == 5 {
@@ -42,7 +45,7 @@ func Test_PgUpgrade_Upgradeable_Tests(t *testing.T) {
 		defer acceptance.RestoreDemoCluster(t, backupDir, source, acceptance.GetTempTargetCluster(t))
 
 		sourceTestDir := filepath.Join(testDir, "upgradeable_tests", "source_cluster_regress")
-		acceptance.Isolation2_regress(t, source.Version, acceptance.GPHOME_SOURCE, acceptance.PGPORT, sourceTestDir, sourceTestDir, idl.Schedule_upgradeable_source_schedule)
+		acceptance.Isolation2_regress(t, acceptance.ISOLATION2_PATH_SOURCE, source.Version, acceptance.GPHOME_SOURCE, acceptance.PGPORT, sourceTestDir, sourceTestDir, idl.Schedule_upgradeable_source_schedule)
 
 		acceptance.Generate(t, migrationDir)
 		acceptance.Apply(t, acceptance.GPHOME_SOURCE, acceptance.PGPORT, idl.Step_initialize, migrationDir)
@@ -55,6 +58,6 @@ func Test_PgUpgrade_Upgradeable_Tests(t *testing.T) {
 		acceptance.Apply(t, acceptance.GPHOME_TARGET, acceptance.PGPORT, idl.Step_finalize, migrationDir)
 
 		targetTestDir := filepath.Join(testDir, "upgradeable_tests", "target_cluster_regress")
-		acceptance.Isolation2_regress(t, source.Version, acceptance.GPHOME_SOURCE, acceptance.PGPORT, targetTestDir, targetTestDir, idl.Schedule_upgradeable_target_schedule)
+		acceptance.Isolation2_regress(t, acceptance.ISOLATION2_PATH_SOURCE, source.Version, acceptance.GPHOME_SOURCE, acceptance.PGPORT, targetTestDir, targetTestDir, idl.Schedule_upgradeable_target_schedule)
 	})
 }

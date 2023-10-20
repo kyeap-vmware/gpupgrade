@@ -27,6 +27,9 @@ func Test_PgUpgrade_Migratable_Tests(t *testing.T) {
 	migrationDir := testutils.GetTempDir(t, "migration")
 	defer testutils.MustRemoveAll(t, migrationDir)
 
+	acceptance.ISOLATION2_PATH_SOURCE = testutils.MustGetEnv("ISOLATION2_PATH_SOURCE")
+	acceptance.ISOLATION2_PATH_TARGET = testutils.MustGetEnv("ISOLATION2_PATH_TARGET")
+
 	source := acceptance.GetSourceCluster(t)
 	dir := "6-to-7"
 	if source.Version.Major == 5 {
@@ -43,7 +46,7 @@ func Test_PgUpgrade_Migratable_Tests(t *testing.T) {
 	t.Run("migration scripts generate sql to modify non-upgradeable objects and fix pg_upgrade check errors", func(t *testing.T) {
 		acceptance.BackupDemoCluster(t, backupDir, source)
 		defer acceptance.RestoreDemoCluster(t, backupDir, source, acceptance.GetTempTargetCluster(t))
-		acceptance.Isolation2_regress(t, source.Version, acceptance.GPHOME_SOURCE, acceptance.PGPORT, sourceTestDir, sourceTestDir, idl.Schedule_migratable_source_schedule)
+		acceptance.Isolation2_regress(t, acceptance.ISOLATION2_PATH_SOURCE, source.Version, acceptance.GPHOME_SOURCE, acceptance.PGPORT, sourceTestDir, sourceTestDir, idl.Schedule_migratable_source_schedule)
 
 		acceptance.Generate(t, migrationDir)
 		acceptance.Apply(t, acceptance.GPHOME_SOURCE, acceptance.PGPORT, idl.Step_initialize, migrationDir)
@@ -57,11 +60,11 @@ func Test_PgUpgrade_Migratable_Tests(t *testing.T) {
 
 		outputTestDir := filepath.Join(targetTestDir, "finalize")
 		testutils.MustCreateDir(t, outputTestDir)
-		acceptance.Isolation2_regress(t, source.Version, acceptance.GPHOME_TARGET, acceptance.PGPORT, targetTestDir, outputTestDir, idl.Schedule_migratable_target_schedule)
+		acceptance.Isolation2_regress(t, acceptance.ISOLATION2_PATH_TARGET, source.Version, acceptance.GPHOME_TARGET, acceptance.PGPORT, targetTestDir, outputTestDir, idl.Schedule_migratable_target_schedule)
 	})
 
 	t.Run("recreate scripts restore migratable objects when reverting after initialize", func(t *testing.T) {
-		acceptance.Isolation2_regress(t, source.Version, acceptance.GPHOME_SOURCE, acceptance.PGPORT, sourceTestDir, sourceTestDir, idl.Schedule_migratable_source_schedule)
+		acceptance.Isolation2_regress(t, acceptance.ISOLATION2_PATH_SOURCE, source.Version, acceptance.GPHOME_SOURCE, acceptance.PGPORT, sourceTestDir, sourceTestDir, idl.Schedule_migratable_source_schedule)
 
 		acceptance.Generate(t, migrationDir)
 		acceptance.Apply(t, acceptance.GPHOME_SOURCE, acceptance.PGPORT, idl.Step_initialize, migrationDir)
@@ -74,11 +77,11 @@ func Test_PgUpgrade_Migratable_Tests(t *testing.T) {
 
 		outputTestDir := filepath.Join(targetTestDir, "revert_initialize")
 		testutils.MustCreateDir(t, outputTestDir)
-		acceptance.Isolation2_regress(t, source.Version, acceptance.GPHOME_SOURCE, acceptance.PGPORT, targetTestDir, outputTestDir, idl.Schedule_migratable_target_schedule)
+		acceptance.Isolation2_regress(t, acceptance.ISOLATION2_PATH_SOURCE, source.Version, acceptance.GPHOME_SOURCE, acceptance.PGPORT, targetTestDir, outputTestDir, idl.Schedule_migratable_target_schedule)
 	})
 
 	t.Run("recreate scripts restore migratable objects when reverting after execute", func(t *testing.T) {
-		acceptance.Isolation2_regress(t, source.Version, acceptance.GPHOME_SOURCE, acceptance.PGPORT, sourceTestDir, sourceTestDir, idl.Schedule_migratable_source_schedule)
+		acceptance.Isolation2_regress(t, acceptance.ISOLATION2_PATH_SOURCE, source.Version, acceptance.GPHOME_SOURCE, acceptance.PGPORT, sourceTestDir, sourceTestDir, idl.Schedule_migratable_source_schedule)
 
 		acceptance.Generate(t, migrationDir)
 		acceptance.Apply(t, acceptance.GPHOME_SOURCE, acceptance.PGPORT, idl.Step_initialize, migrationDir)
@@ -92,6 +95,6 @@ func Test_PgUpgrade_Migratable_Tests(t *testing.T) {
 
 		outputTestDir := filepath.Join(targetTestDir, "revert_execute")
 		testutils.MustCreateDir(t, outputTestDir)
-		acceptance.Isolation2_regress(t, source.Version, acceptance.GPHOME_SOURCE, acceptance.PGPORT, targetTestDir, outputTestDir, idl.Schedule_migratable_target_schedule)
+		acceptance.Isolation2_regress(t, acceptance.ISOLATION2_PATH_SOURCE, source.Version, acceptance.GPHOME_SOURCE, acceptance.PGPORT, targetTestDir, outputTestDir, idl.Schedule_migratable_target_schedule)
 	})
 }

@@ -21,6 +21,9 @@ func Test_PgUpgrade_NonUpgradeable_Tests(t *testing.T) {
 	resetEnv := testutils.SetEnv(t, "GPUPGRADE_HOME", stateDir)
 	defer resetEnv()
 
+	acceptance.ISOLATION2_PATH_SOURCE = testutils.MustGetEnv("ISOLATION2_PATH_SOURCE")
+	acceptance.ISOLATION2_PATH_TARGET = testutils.MustGetEnv("ISOLATION2_PATH_TARGET")
+
 	source := acceptance.GetSourceCluster(t)
 	dir := "6-to-7"
 	if source.Version.Major == 5 {
@@ -33,7 +36,7 @@ func Test_PgUpgrade_NonUpgradeable_Tests(t *testing.T) {
 
 	t.Run("pg_upgrade --check detects non-upgradeable objects", func(t *testing.T) {
 		nonUpgradeableTestDir := filepath.Join(testDir, "non_upgradeable_tests")
-		acceptance.Isolation2_regress(t, source.Version, acceptance.GPHOME_SOURCE, acceptance.PGPORT, nonUpgradeableTestDir, nonUpgradeableTestDir, idl.Schedule_non_upgradeable_schedule)
+		acceptance.Isolation2_regress(t, acceptance.ISOLATION2_PATH_SOURCE, source.Version, acceptance.GPHOME_SOURCE, acceptance.PGPORT, nonUpgradeableTestDir, nonUpgradeableTestDir, idl.Schedule_non_upgradeable_schedule)
 
 		acceptance.Revert(t)
 	})

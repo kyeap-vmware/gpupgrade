@@ -4,16 +4,19 @@
 package acceptance
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/blang/semver/v4"
+	"golang.org/x/xerrors"
 
 	"github.com/greenplum-db/gpupgrade/greenplum"
 	"github.com/greenplum-db/gpupgrade/greenplum/connection"
@@ -29,6 +32,8 @@ import (
 
 var GPHOME_SOURCE string
 var GPHOME_TARGET string
+var ISOLATION2_PATH_SOURCE string
+var ISOLATION2_PATH_TARGET string
 var PGPORT string
 
 const TARGET_PGPORT = "6020"
@@ -330,7 +335,7 @@ func RestoreDemoCluster(t *testing.T, backupDir string, source greenplum.Cluster
 	}
 }
 
-func Isolation2_regress(t *testing.T, sourceVersion semver.Version, gphome string, port string, inputDir string, outputDir string, schedule idl.Schedule) string {
+func Isolation2_regress(t *testing.T, isolation2Path string, sourceVersion semver.Version, gphome string, port string, inputDir string, outputDir string, schedule idl.Schedule) string {
 	t.Helper()
 
 	var cmdArgs []string
@@ -338,17 +343,30 @@ func Isolation2_regress(t *testing.T, sourceVersion semver.Version, gphome strin
 		cmdArgs = append(cmdArgs, "--use-existing")
 	}
 
-	env := []string{"PGOPTIONS=-c optimizer=off"}
 	var binDir string
-	if sourceVersion.Major == 5 {
+	currentClusterVersion, err := getRunningClusterVersion(port)
+	if err != nil {
+		t.Fatalf("unexpected err: %#v", err)
+	}
+	switch currentClusterVersion.Major {
+	case 5:
+		// 6X's pg_isolation2_regress is used for 5X cluster
+		fallthrough
+	case 6:
 		binDir = "--psqldir"
+	default:
+		binDir = "--bindir"
+	}
+
+	env := []string{"PGOPTIONS=-c optimizer=off"}
+	if sourceVersion.Major == currentClusterVersion.Major {
 		// Set PYTHONPATH directly since it is needed when running the
 		// pg_upgrade tests locally. Normally one would source
 		// greenplum_path.sh, but that causes the following issues:
 		// https://web.archive.org/web/20220506055918/https://groups.google.com/a/greenplum.org/g/gpdb-dev/c/JN-YwjCCReY/m/0L9wBOvlAQAJ
 		env = append(env, "PYTHONPATH="+filepath.Join(GPHOME_SOURCE, "lib/python"))
 	} else {
-		binDir = "--bindir"
+		env = append(env, "PYTHONPATH="+filepath.Join(GPHOME_TARGET, "lib/python"))
 	}
 
 	tests := "--schedule=" + filepath.Join(inputDir, schedule.String())
@@ -367,7 +385,7 @@ func Isolation2_regress(t *testing.T, sourceVersion semver.Version, gphome strin
 	)
 
 	cmd := exec.Command("./pg_isolation2_regress", cmdArgs...)
-	cmd.Dir = testutils.MustGetEnv("ISOLATION2_PATH")
+	cmd.Dir = isolation2Path
 	cmd.Env = append(os.Environ(), env...)
 
 	output, err := cmd.CombinedOutput()
@@ -376,6 +394,46 @@ func Isolation2_regress(t *testing.T, sourceVersion semver.Version, gphome strin
 	}
 
 	return strings.TrimSpace(string(output))
+}
+
+// Used to figure out which version of pg_isolation2_regress will be called.
+func getRunningClusterVersion(port string) (semver.Version, error) {
+	psqlArgs := []string{
+		"-d", "postgres",
+		"-p", port,
+		"-c", "SELECT version()",
+	}
+
+	psql := fmt.Sprintf("%s/bin/psql", GPHOME_TARGET)
+	cmd := exec.Command(psql, psqlArgs...)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		goto PARSE
+	}
+
+	psql = fmt.Sprintf("%s/bin/psql", GPHOME_SOURCE)
+	cmd = exec.Command(psql, psqlArgs...)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		return semver.Version{}, xerrors.Errorf("Unable to query version from a running GPDB: %#v stderr %s", err, output)
+	}
+
+PARSE:
+	// Example expected output from 'SELECT version()':
+	// PostgreSQL 8.3.23 (Greenplum Database 5.29.11+dev.5.gbb79e943c2 build dev)...
+	rawVersion := string(output)
+	pattern := regexp.MustCompile(`\d+\.\d+\.\d+`)
+	matches := pattern.FindAllString(rawVersion, -1)
+	if len(matches) < 2 {
+		return semver.Version{}, xerrors.Errorf("Unexpected version format from 'SELECT version()': %q", rawVersion)
+	}
+
+	version, err := semver.Parse(matches[1])
+	if err != nil {
+		return semver.Version{}, xerrors.Errorf("parsing Greenplum version %q: %w", rawVersion, err)
+	}
+
+	return version, nil
 }
 
 func Jq(t *testing.T, file string, args ...string) string {
