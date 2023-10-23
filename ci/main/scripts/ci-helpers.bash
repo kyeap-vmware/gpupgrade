@@ -16,6 +16,31 @@ is_GPDB6() {
     [[ $version =~ ^"postgres (Greenplum Database) 6." ]]
 }
 
+source_not_GPDB5() {
+    local version=$(rpm -q --qf '%{version}' "$SOURCE_PACKAGE" | tr _ -)
+    [[ ! $version =~ ^5\. ]]
+}
+
+source_is_GPDB6() {
+    local version=$(rpm -q --qf '%{version}' "$SOURCE_PACKAGE" | tr _ -)
+    [[ $version =~ ^6\. ]]
+}
+
+target_is_GPDB6() {
+    local version=$(rpm -q --qf '%{version}' "$TARGET_PACKAGE" | tr _ -)
+    [[ $version =~ ^6\. ]]
+}
+
+different_source_and_target_version() {
+    local source_version=$(rpm -q --qf '%{version}' "$SOURCE_PACKAGE" | tr _ -)
+    local source_major=${source_version:0:1}
+
+    local target_version=$(rpm -q --qf '%{version}' "$TARGET_PACKAGE" | tr _ -)
+    local target_major=${target_version:0:1}
+
+    [[ $source_major -ne $target_major ]]
+}
+
 # set the database gucs
 # 1. bytea_output: by default for bytea the output format is hex on GPDB 6,
 #    so change it to escape to match GPDB 5 representation
@@ -124,9 +149,65 @@ install_target_GPDB_rpm_and_symlink() {
 }
 
 create_source_cluster() {
-    source "$GPHOME_SOURCE"/greenplum_path.sh
-
     chown -R gpadmin:gpadmin gpdb_src_source/gpAux/gpdemo
-    su gpadmin -c "make -j $(nproc) -C gpdb_src_source/gpAux/gpdemo create-demo-cluster"
+    su gpadmin -c "
+        source /usr/local/greenplum-db-source/greenplum_path.sh
+        make -j $(nproc) -C gpdb_src_source/gpAux/gpdemo create-demo-cluster
+    "
     source gpdb_src_source/gpAux/gpdemo/gpdemo-env.sh
+}
+ 
+configure6() {
+    local GPHOME="$1"
+
+    set +u
+    # copied from setup_configure_vars in gpdb's common.bash
+    source "${GPHOME}/greenplum_path.sh"
+    export LDFLAGS="-L${GPHOME}/lib"
+    export CPPFLAGS="-I${GPHOME}/include"
+
+    # 6x pg_isolation2_regress is using python without a path. Without this
+    # hack, we get the following error in 6 > 7 upgrade when trying to use 6x's
+    # pg_isolation2_regress. `/bin/sh: line 0: exec: python: not found`
+    ln -s ${GPHOME}/ext/python/bin/python /usr/bin/python
+
+    # copied from configure in gpdb6 common.bash
+    export LDFLAGS="-L${GPHOME}/ext/python/lib $LDFLAGS"
+    ./configure --prefix=${GPHOME} --with-perl --with-python --with-libxml --with-uuid=e2fs --enable-mapreduce --enable-orafce --enable-tap-tests --disable-orca --with-openssl PYTHON=${GPHOME}/ext/python/bin/python
+    set -u
+}
+
+configure7() {
+    local GPHOME="$1"
+
+    set +u
+    # copied from setup_configure_vars in gpdb's common.bash
+    source "${GPHOME}/greenplum_path.sh"
+    export LDFLAGS="-L${GPHOME}/lib"
+    export CPPFLAGS="-I${GPHOME}/include"
+
+    # copied from configure in gpdb7 common.bash
+    export LDFLAGS="-L${GPHOME}/ext/python/lib $LDFLAGS"
+    ./configure --prefix=${GPHOME} --disable-orca --enable-gpcloud --enable-orafce --enable-tap-tests --with-gssapi --with-libxml --with-openssl --with-perl --with-python --with-uuid=e2fs --with-llvm --with-zstd PYTHON=python3.9 PKG_CONFIG_PATH="${GPHOME}/lib/pkgconfig"
+    set -u
+}
+
+configure_source() {
+    pushd gpdb_src_source
+    if source_is_GPDB6; then
+        configure6 ${GPHOME_SOURCE}
+    else
+        configure7 ${GPHOME_SOURCE}
+    fi
+    popd
+}
+
+configure_target() {
+    pushd gpdb_src_target
+    if target_is_GPDB6; then
+        configure6 ${GPHOME_TARGET}
+    else
+        configure7 ${GPHOME_TARGET}
+    fi
+    popd
 }

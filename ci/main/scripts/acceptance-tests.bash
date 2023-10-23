@@ -12,7 +12,10 @@ source gpupgrade_src/ci/main/scripts/environment.bash
 source gpupgrade_src/ci/main/scripts/ci-helpers.bash
 
 function run_migration_scripts_and_tests() {
+    # Prevent write permission errors
     chown -R gpadmin:gpadmin gpupgrade_src
+    chown -R gpadmin:gpadmin gpdb_src_source
+    chown -R gpadmin:gpadmin gpdb_src_target
     su gpadmin -c '
         set -eux -o pipefail
 
@@ -34,7 +37,7 @@ function run_migration_scripts_and_tests() {
 
 main() {
     echo "Setting up gpadmin user..."
-    mkdir -p gpdb_src
+    ln -s gpdb_src_source gpdb_src
     ./gpdb_src_source/concourse/scripts/setup_gpadmin_user.bash "centos"
 
     echo "Installing the source GPDB rpm and symlink..."

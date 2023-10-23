@@ -31,9 +31,7 @@
           - name: enterprise_rpm
           - name: gpupgrade_src
           - name: gpdb_src_source
-          # Rename gpdb_src_target to gpdb_src since external scripts used within rely on that.
           - name: gpdb_src_target
-            path: gpdb_src
           - name: rpm_gpdb_source
           - name: rpm_gpdb_target
         run:
