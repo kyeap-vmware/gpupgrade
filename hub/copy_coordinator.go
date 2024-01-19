@@ -48,6 +48,7 @@ func Copy(streams step.OutStreams, sourceDirs []string, agentHostsToBackupDir ba
 				rsync.WithDestinationHost(hostname),
 				rsync.WithDestination(backupDir),
 				rsync.WithOptions("--archive", "--compress", "--delete", "--stats"),
+				rsync.WithOptions("--exclude=pg_upgrade_output.d"),
 				rsync.WithStream(stream),
 			}
 
