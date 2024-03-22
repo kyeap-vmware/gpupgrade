@@ -16,10 +16,12 @@ import (
 	"github.com/greenplum-db/gpupgrade/utils"
 )
 
+var checkSubsteps substeps.Substeps
 var initializeSubsteps substeps.Substeps
 var executeSubsteps substeps.Substeps
 var finalizeSubsteps substeps.Substeps
 var revertSubsteps substeps.Substeps
+var CheckHelp string
 var InitializeHelp string
 var ExecuteHelp string
 var FinalizeHelp string
@@ -31,6 +33,10 @@ func init() {
 	logDir, err := utils.GetLogDir()
 	if err != nil {
 		panic(fmt.Sprintf("failed to get log directory: %v", err))
+	}
+
+	checkSubsteps = substeps.Substeps{
+		idl.Substep_check_upgrade,
 	}
 
 	initializeSubsteps = substeps.Substeps{
@@ -104,6 +110,7 @@ func init() {
 		idl.Substep_delete_master_statedir,
 	}
 
+	CheckHelp = fmt.Sprintf(checkHelpText, "check", checkSubsteps, logDir)
 	InitializeHelp = fmt.Sprintf(initializeHelpText, cases.Title(language.English).String(idl.Step_initialize.String()), initializeSubsteps, logDir)
 	ExecuteHelp = fmt.Sprintf(executeHelpText, cases.Title(language.English).String(idl.Step_execute.String()), executeSubsteps, logDir)
 	FinalizeHelp = fmt.Sprintf(finalizeHelpText, cases.Title(language.English).String(idl.Step_finalize.String()), finalizeSubsteps, logDir)
@@ -118,6 +125,25 @@ func init() {
 	}
 }
 
+const checkHelpText = `
+Runs checks only relevant when upgrading using gpbackup. This command is to be
+used to run relevant pre-upgrade checks to look for incompatible objects on
+source cluster as part of the process of upgrading from GPDB6 to GPDB7 using
+gpbackup.
+
+%s will carry out the following steps:
+%s
+Usage: gpupgrade check
+
+Optional Flags:
+
+  -h, --help                 displays help output for check
+      --source-gphome        source cluster gphome. Default '/usr/local/gpdb6'.
+      --target-gphome        target cluster gphome. Default '/usr/local/gpdb7'.
+      --source-master-port   source cluster port.   Default 5432.
+
+gpupgrade log files can be found on all hosts in %s
+`
 const initializeHelpText = `
 Runs pre-upgrade checks and prepares the cluster for upgrade.
 
@@ -283,6 +309,11 @@ Required Commands:
                   Greenplum version
 
 Optional Commands:
+
+  check           Runs checks only relevant when upgrading using gpbackup. This
+                  command is to be used to run relevant pre-upgrade checks to
+                  look for incompatible objects on source cluster as part of the
+                  process of upgrading from GPDB6 to GPDB7 using gpbackup.
 
   revert          returns the cluster to its original state
                   Note: revert cannot be used after gpupgrade finalize
