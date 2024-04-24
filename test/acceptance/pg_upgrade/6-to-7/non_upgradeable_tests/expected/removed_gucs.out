@@ -1,0 +1,439 @@
+-- Copyright (c) 2017-2024 VMware, Inc. or its affiliates
+-- SPDX-License-Identifier: Apache-2.0
+
+--------------------------------------------------------------------------------
+-- Create and setup non-upgradeable objects
+--------------------------------------------------------------------------------
+
+CREATE DATABASE all_upgradable_gucs_db;
+CREATE DATABASE
+ALTER DATABASE all_upgradable_gucs_db SET allow_system_table_mods = true;
+ALTER DATABASE
+ALTER DATABASE all_upgradable_gucs_db SET trace_notify = true;
+ALTER DATABASE
+
+CREATE DATABASE some_nonupgradable_gucs_db;
+CREATE DATABASE
+ALTER DATABASE some_nonupgradable_gucs_db SET allow_system_table_mods = true;
+ALTER DATABASE
+ALTER DATABASE some_nonupgradable_gucs_db SET autocommit = true;
+ALTER DATABASE
+
+CREATE DATABASE all_nonupgradable_gucs_db;
+CREATE DATABASE
+ALTER DATABASE all_nonupgradable_gucs_db SET autocommit = true;
+ALTER DATABASE
+ALTER DATABASE all_nonupgradable_gucs_db SET debug_latch = true;
+ALTER DATABASE
+
+CREATE ROLE all_upgradable_gucs_role;
+CREATE ROLE
+ALTER ROLE all_upgradable_gucs_role SET allow_system_table_mods = true;
+ALTER ROLE
+ALTER ROLE all_upgradable_gucs_role SET trace_notify = true;
+ALTER ROLE
+
+CREATE ROLE some_nonupgradable_gucs_role;
+CREATE ROLE
+ALTER ROLE some_nonupgradable_gucs_role SET allow_system_table_mods = true;
+ALTER ROLE
+ALTER ROLE some_nonupgradable_gucs_role SET autocommit = true;
+ALTER ROLE
+
+-- As exhaustive as possible within reason
+CREATE ROLE all_nonupgradable_gucs_role;
+CREATE ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET autocommit = true;
+ALTER ROLE
+-- ALTER ROLE all_nonupgradable_gucs_role SET checkpoint_segments = 0;
+-- ERROR:  parameter "checkpoint_segments" cannot be changed now
+ALTER ROLE all_nonupgradable_gucs_role SET debug_latch = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET dev_opt_unsafe_truncate_in_subtransaction = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET dml_ignore_target_partition_check = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET dtx_phase2_retry_count = 0;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET enable_implicit_timeformat_YYYYMMDDHH24MISS = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_add_column_inherits_table_setting = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_allow_rename_relation_without_lock = true;
+ALTER ROLE
+-- ALTER ROLE all_nonupgradable_gucs_role SET gp_count_host_segments_using_address = true;
+-- ERROR:  parameter "gp_count_host_segments_using_address" cannot be changed without restarting the server
+ALTER ROLE all_nonupgradable_gucs_role SET gp_distinct_grouping_sets_threshold = 32;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_eager_agg_distinct_pruning = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_eager_one_phase_agg = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_eager_preunique = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_enable_exchange_default_partition = true;
+ALTER ROLE
+-- ALTER ROLE all_nonupgradable_gucs_role SET gp_enable_gpperfmon = true;
+-- ERROR:  parameter "gp_enable_gpperfmon" cannot be changed without restarting the server
+ALTER ROLE all_nonupgradable_gucs_role SET gp_enable_groupext_distinct_gather = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_enable_groupext_distinct_pruning = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_enable_mdqa_shared_scan = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_enable_mk_sort = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_enable_motion_mk_sort = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_enable_sort_distinct = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_gang_creation_retry_non_recovery = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_gpperfmon_send_interval = 1;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_hashagg_default_nbatches = 32;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_hashagg_groups_per_bucket = 5;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_hashagg_streambottom = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_ignore_window_exclude = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_indexcheck_vacuum = 0;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_keep_all_xlog = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_keep_partition_children_locks = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_log_resqueue_priority_sleep_time = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_mk_sort_check = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_partitioning_dynamic_selection_log = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gpperfmon_log_alert_level = warning;
+ALTER ROLE
+--ALTER ROLE all_nonupgradable_gucs_role SET gpperfmon_port = true;
+-- ERROR:  parameter "gpperfmon_port" cannot be changed without restarting the server
+ALTER ROLE all_nonupgradable_gucs_role SET gp_perfmon_print_packet_info = true;
+ALTER ROLE
+-- ALTER ROLE all_nonupgradable_gucs_role SET gp_perfmon_segment_interval = true;
+-- ERROR:  parameter "gp_perfmon_segment_interval" cannot be changed without restarting the server
+ALTER ROLE all_nonupgradable_gucs_role SET gp_resgroup_print_operator_memory_limits = true;
+ALTER ROLE
+-- ALTER ROLE all_nonupgradable_gucs_role SET gp_resource_group_cpu_ceiling_enforcement = true;
+-- ERROR:  parameter "gp_resource_group_cpu_ceiling_enforcement" cannot be changed without restarting the server
+ALTER ROLE all_nonupgradable_gucs_role SET gp_resource_group_enable_recalculate_query_mem = true;
+ALTER ROLE
+-- ALTER ROLE all_nonupgradable_gucs_role SET gp_resource_group_memory_limit = true;
+-- ERROR:  parameter "gp_resource_group_memory_limit" cannot be changed without restarting the server
+-- ALTER ROLE all_nonupgradable_gucs_role SET gp_safefswritesize = true;
+-- ERROR:  parameter "gp_safefswritesize" cannot be set after connection start
+ALTER ROLE all_nonupgradable_gucs_role SET gp_sort_flags = 0;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_sort_max_distinct = 0;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET gp_use_synchronize_seqscans_catalog_vacuum_full = true;
+ALTER ROLE
+-- ALTER ROLE all_nonupgradable_gucs_role SET max_appendonly_tables = true;
+-- ERROR:  parameter "max_appendonly_tables" cannot be changed without restarting the server
+ALTER ROLE all_nonupgradable_gucs_role SET memory_spill_ratio = 0;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET optimizer_analyze_enable_merge_of_leaf_stats = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET optimizer_enable_dml_triggers = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET optimizer_enable_partial_index = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET optimizer_prune_unused_columns = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET password_hash_algorithm = MD5;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET sql_inheritance = true;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role SET test_print_prefetch_joinqual = true;
+ALTER ROLE
+-- ALTER ROLE all_nonupgradable_gucs_role SET wal_keep_segments = true;
+-- ERROR:  parameter "wal_keep_segments" cannot be changed now
+
+SELECT d.datname, r.rolname, split_part(unnest(s.setconfig),'=',1) AS guc FROM pg_db_role_setting s LEFT JOIN pg_roles r ON s.setrole = r.oid LEFT JOIN pg_database d ON s.setdatabase = d.oid WHERE r.rolname in ('all_upgradable_gucs_role', 'some_nonupgradable_gucs_role', 'all_nonupgradable_gucs_role') OR d.datname in ('all_upgradable_gucs_db', 'some_nonupgradable_gucs_db', 'all_nonupgradable_gucs_db') ORDER BY 1, 2, 3;
+ datname                    | rolname                      | guc                                             
+----------------------------+------------------------------+-------------------------------------------------
+ all_nonupgradable_gucs_db  |                              | autocommit                                      
+ all_nonupgradable_gucs_db  |                              | debug_latch                                     
+ all_upgradable_gucs_db     |                              | allow_system_table_mods                         
+ all_upgradable_gucs_db     |                              | trace_notify                                    
+ some_nonupgradable_gucs_db |                              | allow_system_table_mods                         
+ some_nonupgradable_gucs_db |                              | autocommit                                      
+                            | all_nonupgradable_gucs_role  | autocommit                                      
+                            | all_nonupgradable_gucs_role  | debug_latch                                     
+                            | all_nonupgradable_gucs_role  | dev_opt_unsafe_truncate_in_subtransaction       
+                            | all_nonupgradable_gucs_role  | dml_ignore_target_partition_check               
+                            | all_nonupgradable_gucs_role  | dtx_phase2_retry_count                          
+                            | all_nonupgradable_gucs_role  | enable_implicit_timeformat_YYYYMMDDHH24MISS     
+                            | all_nonupgradable_gucs_role  | gp_add_column_inherits_table_setting            
+                            | all_nonupgradable_gucs_role  | gp_allow_rename_relation_without_lock           
+                            | all_nonupgradable_gucs_role  | gp_distinct_grouping_sets_threshold             
+                            | all_nonupgradable_gucs_role  | gp_eager_agg_distinct_pruning                   
+                            | all_nonupgradable_gucs_role  | gp_eager_one_phase_agg                          
+                            | all_nonupgradable_gucs_role  | gp_eager_preunique                              
+                            | all_nonupgradable_gucs_role  | gp_enable_exchange_default_partition            
+                            | all_nonupgradable_gucs_role  | gp_enable_groupext_distinct_gather              
+                            | all_nonupgradable_gucs_role  | gp_enable_groupext_distinct_pruning             
+                            | all_nonupgradable_gucs_role  | gp_enable_mdqa_shared_scan                      
+                            | all_nonupgradable_gucs_role  | gp_enable_mk_sort                               
+                            | all_nonupgradable_gucs_role  | gp_enable_motion_mk_sort                        
+                            | all_nonupgradable_gucs_role  | gp_enable_sort_distinct                         
+                            | all_nonupgradable_gucs_role  | gp_gang_creation_retry_non_recovery             
+                            | all_nonupgradable_gucs_role  | gp_gpperfmon_send_interval                      
+                            | all_nonupgradable_gucs_role  | gp_hashagg_default_nbatches                     
+                            | all_nonupgradable_gucs_role  | gp_hashagg_groups_per_bucket                    
+                            | all_nonupgradable_gucs_role  | gp_hashagg_streambottom                         
+                            | all_nonupgradable_gucs_role  | gp_ignore_window_exclude                        
+                            | all_nonupgradable_gucs_role  | gp_indexcheck_vacuum                            
+                            | all_nonupgradable_gucs_role  | gp_keep_all_xlog                                
+                            | all_nonupgradable_gucs_role  | gp_keep_partition_children_locks                
+                            | all_nonupgradable_gucs_role  | gp_log_resqueue_priority_sleep_time             
+                            | all_nonupgradable_gucs_role  | gp_mk_sort_check                                
+                            | all_nonupgradable_gucs_role  | gp_partitioning_dynamic_selection_log           
+                            | all_nonupgradable_gucs_role  | gpperfmon_log_alert_level                       
+                            | all_nonupgradable_gucs_role  | gp_perfmon_print_packet_info                    
+                            | all_nonupgradable_gucs_role  | gp_resgroup_print_operator_memory_limits        
+                            | all_nonupgradable_gucs_role  | gp_resource_group_enable_recalculate_query_mem  
+                            | all_nonupgradable_gucs_role  | gp_sort_flags                                   
+                            | all_nonupgradable_gucs_role  | gp_sort_max_distinct                            
+                            | all_nonupgradable_gucs_role  | gp_use_synchronize_seqscans_catalog_vacuum_full 
+                            | all_nonupgradable_gucs_role  | memory_spill_ratio                              
+                            | all_nonupgradable_gucs_role  | optimizer_analyze_enable_merge_of_leaf_stats    
+                            | all_nonupgradable_gucs_role  | optimizer_enable_dml_triggers                   
+                            | all_nonupgradable_gucs_role  | optimizer_enable_partial_index                  
+                            | all_nonupgradable_gucs_role  | optimizer_prune_unused_columns                  
+                            | all_nonupgradable_gucs_role  | password_hash_algorithm                         
+                            | all_nonupgradable_gucs_role  | sql_inheritance                                 
+                            | all_nonupgradable_gucs_role  | test_print_prefetch_joinqual                    
+                            | all_upgradable_gucs_role     | allow_system_table_mods                         
+                            | all_upgradable_gucs_role     | trace_notify                                    
+                            | some_nonupgradable_gucs_role | allow_system_table_mods                         
+                            | some_nonupgradable_gucs_role | autocommit                                      
+(56 rows)
+
+---------------------------------------------------------------------------------
+--- Assert that pg_upgrade --check correctly detects the non-upgradeable objects
+---------------------------------------------------------------------------------
+!\retcode gpupgrade initialize --source-gphome="${GPHOME_SOURCE}" --target-gphome=${GPHOME_TARGET} --source-master-port=${PGPORT} --disk-free-ratio 0 --non-interactive;
+(exited with code 1)
+! find $(ls -dt ~/gpAdminLogs/gpupgrade/pg_upgrade_*/ | head -1) -name "databases_and_roles_with_removed_gucs_set.txt" -exec cat {} +;
+Database, Removed GUC :
+  all_nonupgradable_gucs_db, autocommit
+  all_nonupgradable_gucs_db, debug_latch
+  some_nonupgradable_gucs_db, autocommit
+
+Role, Removed GUC :
+  all_nonupgradable_gucs_role, autocommit
+  all_nonupgradable_gucs_role, debug_latch
+  all_nonupgradable_gucs_role, dev_opt_unsafe_truncate_in_subtransaction
+  all_nonupgradable_gucs_role, dml_ignore_target_partition_check
+  all_nonupgradable_gucs_role, dtx_phase2_retry_count
+  all_nonupgradable_gucs_role, enable_implicit_timeformat_YYYYMMDDHH24MISS
+  all_nonupgradable_gucs_role, gp_add_column_inherits_table_setting
+  all_nonupgradable_gucs_role, gp_allow_rename_relation_without_lock
+  all_nonupgradable_gucs_role, gp_distinct_grouping_sets_threshold
+  all_nonupgradable_gucs_role, gp_eager_agg_distinct_pruning
+  all_nonupgradable_gucs_role, gp_eager_one_phase_agg
+  all_nonupgradable_gucs_role, gp_eager_preunique
+  all_nonupgradable_gucs_role, gp_enable_exchange_default_partition
+  all_nonupgradable_gucs_role, gp_enable_groupext_distinct_gather
+  all_nonupgradable_gucs_role, gp_enable_groupext_distinct_pruning
+  all_nonupgradable_gucs_role, gp_enable_mdqa_shared_scan
+  all_nonupgradable_gucs_role, gp_enable_mk_sort
+  all_nonupgradable_gucs_role, gp_enable_motion_mk_sort
+  all_nonupgradable_gucs_role, gp_enable_sort_distinct
+  all_nonupgradable_gucs_role, gp_gang_creation_retry_non_recovery
+  all_nonupgradable_gucs_role, gp_gpperfmon_send_interval
+  all_nonupgradable_gucs_role, gp_hashagg_default_nbatches
+  all_nonupgradable_gucs_role, gp_hashagg_groups_per_bucket
+  all_nonupgradable_gucs_role, gp_hashagg_streambottom
+  all_nonupgradable_gucs_role, gp_ignore_window_exclude
+  all_nonupgradable_gucs_role, gp_indexcheck_vacuum
+  all_nonupgradable_gucs_role, gp_keep_all_xlog
+  all_nonupgradable_gucs_role, gp_keep_partition_children_locks
+  all_nonupgradable_gucs_role, gp_log_resqueue_priority_sleep_time
+  all_nonupgradable_gucs_role, gp_mk_sort_check
+  all_nonupgradable_gucs_role, gp_partitioning_dynamic_selection_log
+  all_nonupgradable_gucs_role, gpperfmon_log_alert_level
+  all_nonupgradable_gucs_role, gp_perfmon_print_packet_info
+  all_nonupgradable_gucs_role, gp_resgroup_print_operator_memory_limits
+  all_nonupgradable_gucs_role, gp_resource_group_enable_recalculate_query_mem
+  all_nonupgradable_gucs_role, gp_sort_flags
+  all_nonupgradable_gucs_role, gp_sort_max_distinct
+  all_nonupgradable_gucs_role, gp_use_synchronize_seqscans_catalog_vacuum_full
+  all_nonupgradable_gucs_role, memory_spill_ratio
+  all_nonupgradable_gucs_role, optimizer_analyze_enable_merge_of_leaf_stats
+  all_nonupgradable_gucs_role, optimizer_enable_dml_triggers
+  all_nonupgradable_gucs_role, optimizer_enable_partial_index
+  all_nonupgradable_gucs_role, optimizer_prune_unused_columns
+  all_nonupgradable_gucs_role, password_hash_algorithm
+  all_nonupgradable_gucs_role, sql_inheritance
+  all_nonupgradable_gucs_role, test_print_prefetch_joinqual
+  some_nonupgradable_gucs_role, autocommit
+
+
+---------------------------------------------------------------------------------
+--- Cleanup
+---------------------------------------------------------------------------------
+ALTER DATABASE all_upgradable_gucs_db RESET allow_system_table_mods;
+ALTER DATABASE
+ALTER DATABASE all_upgradable_gucs_db RESET trace_notify;
+ALTER DATABASE
+
+ALTER DATABASE some_nonupgradable_gucs_db RESET allow_system_table_mods;
+ALTER DATABASE
+ALTER DATABASE some_nonupgradable_gucs_db RESET autocommit;
+ALTER DATABASE
+
+ALTER DATABASE all_nonupgradable_gucs_db RESET autocommit;
+ALTER DATABASE
+ALTER DATABASE all_nonupgradable_gucs_db RESET debug_latch;
+ALTER DATABASE
+
+ALTER ROLE all_upgradable_gucs_role RESET allow_system_table_mods;
+ALTER ROLE
+ALTER ROLE all_upgradable_gucs_role RESET trace_notify;
+ALTER ROLE
+
+ALTER ROLE some_nonupgradable_gucs_role RESET allow_system_table_mods;
+ALTER ROLE
+ALTER ROLE some_nonupgradable_gucs_role RESET autocommit;
+ALTER ROLE
+
+ALTER ROLE all_nonupgradable_gucs_role RESET autocommit;
+ALTER ROLE
+-- ALTER ROLE all_nonupgradable_gucs_role RESET checkpoint_segments;
+-- ERROR:  parameter "checkpoint_segments" cannot be changed now
+ALTER ROLE all_nonupgradable_gucs_role RESET debug_latch;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET dev_opt_unsafe_truncate_in_subtransaction;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET dml_ignore_target_partition_check;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET dtx_phase2_retry_count;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET enable_implicit_timeformat_YYYYMMDDHH24MISS;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_add_column_inherits_table_setting;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_allow_rename_relation_without_lock;
+ALTER ROLE
+-- ALTER ROLE all_nonupgradable_gucs_role RESET gp_count_host_segments_using_address;
+-- ERROR:  parameter "gp_count_host_segments_using_address" cannot be changed without restarting the server
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_distinct_grouping_sets_threshold;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_eager_agg_distinct_pruning;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_eager_one_phase_agg;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_eager_preunique;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_enable_exchange_default_partition;
+ALTER ROLE
+-- ALTER ROLE all_nonupgradable_gucs_role RESET gp_enable_gpperfmon;
+-- ERROR:  parameter "gp_enable_gpperfmon" cannot be changed without restarting the server
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_enable_groupext_distinct_gather;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_enable_groupext_distinct_pruning;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_enable_mdqa_shared_scan;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_enable_mk_sort;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_enable_motion_mk_sort;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_enable_sort_distinct;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_gang_creation_retry_non_recovery;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_gpperfmon_send_interval;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_hashagg_default_nbatches;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_hashagg_groups_per_bucket;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_hashagg_streambottom;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_ignore_window_exclude;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_indexcheck_vacuum;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_keep_all_xlog;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_keep_partition_children_locks;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_log_resqueue_priority_sleep_time;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_mk_sort_check;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_partitioning_dynamic_selection_log;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gpperfmon_log_alert_level;
+ALTER ROLE
+--ALTER ROLE all_nonupgradable_gucs_role RESET gpperfmon_port;
+-- ERROR:  parameter "gpperfmon_port" cannot be changed without restarting the server
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_perfmon_print_packet_info;
+ALTER ROLE
+-- ALTER ROLE all_nonupgradable_gucs_role RESET gp_perfmon_segment_interval;
+-- ERROR:  parameter "gp_perfmon_segment_interval" cannot be changed without restarting the server
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_resgroup_print_operator_memory_limits;
+ALTER ROLE
+-- ALTER ROLE all_nonupgradable_gucs_role RESET gp_resource_group_cpu_ceiling_enforcement;
+-- ERROR:  parameter "gp_resource_group_cpu_ceiling_enforcement" cannot be changed without restarting the server
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_resource_group_enable_recalculate_query_mem;
+ALTER ROLE
+-- ALTER ROLE all_nonupgradable_gucs_role RESET gp_resource_group_memory_limit;
+-- ERROR:  parameter "gp_resource_group_memory_limit" cannot be changed without restarting the server
+-- ALTER ROLE all_nonupgradable_gucs_role RESET gp_safefswritesize;
+-- ERROR:  parameter "gp_safefswritesize" cannot be set after connection start
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_sort_flags;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_sort_max_distinct;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET gp_use_synchronize_seqscans_catalog_vacuum_full;
+ALTER ROLE
+-- ALTER ROLE all_nonupgradable_gucs_role RESET max_appendonly_tables;
+-- ERROR:  parameter "max_appendonly_tables" cannot be changed without restarting the server
+ALTER ROLE all_nonupgradable_gucs_role RESET memory_spill_ratio;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET optimizer_analyze_enable_merge_of_leaf_stats;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET optimizer_enable_dml_triggers;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET optimizer_enable_partial_index;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET optimizer_prune_unused_columns;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET password_hash_algorithm;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET sql_inheritance;
+ALTER ROLE
+ALTER ROLE all_nonupgradable_gucs_role RESET test_print_prefetch_joinqual;
+ALTER ROLE
+-- ALTER ROLE all_nonupgradable_gucs_role RESET wal_keep_segments;
+-- ERROR:  parameter "wal_keep_segments" cannot be changed now
+
+SELECT d.datname, r.rolname, split_part(unnest(s.setconfig),'=',1) AS guc FROM pg_db_role_setting s LEFT JOIN pg_roles r ON s.setrole = r.oid LEFT JOIN pg_database d ON s.setdatabase = d.oid WHERE r.rolname in ('all_upgradable_gucs_role', 'some_nonupgradable_gucs_role', 'all_nonupgradable_gucs_role') OR d.datname in ('all_upgradable_gucs_db', 'some_nonupgradable_gucs_db', 'all_nonupgradable_gucs_db') ORDER BY 1, 2, 3;
+ datname | rolname | guc 
+---------+---------+-----
+(0 rows)
+
+DROP DATABASE all_upgradable_gucs_db;
+DROP DATABASE
+DROP DATABASE some_nonupgradable_gucs_db;
+DROP DATABASE
+DROP DATABASE all_nonupgradable_gucs_db;
+DROP DATABASE
+
+DROP ROLE all_upgradable_gucs_role;
+DROP ROLE
+DROP ROLE some_nonupgradable_gucs_role;
+DROP ROLE
+DROP ROLE all_nonupgradable_gucs_role;
+DROP ROLE
