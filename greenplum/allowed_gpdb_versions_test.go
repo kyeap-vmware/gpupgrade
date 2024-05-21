@@ -28,7 +28,7 @@ func TestVerifyCompatibleGPDBVersions(t *testing.T) {
 
 	t.Run("errors when failing to get source cluster version", func(t *testing.T) {
 		expected := os.ErrNotExist
-		GetSourceVersion = func(gphome string) (semver.Version, error) {
+		GetSourceVersion = func(gphome any) (semver.Version, error) {
 			return semver.Version{}, expected
 		}
 		defer func() {
@@ -42,7 +42,7 @@ func TestVerifyCompatibleGPDBVersions(t *testing.T) {
 	})
 
 	t.Run("errors when failing to get target cluster version", func(t *testing.T) {
-		GetSourceVersion = func(gphome string) (semver.Version, error) {
+		GetSourceVersion = func(gphome any) (semver.Version, error) {
 			return semver.Version{}, nil
 		}
 		defer func() {
@@ -50,7 +50,7 @@ func TestVerifyCompatibleGPDBVersions(t *testing.T) {
 		}()
 
 		expected := os.ErrNotExist
-		GetTargetVersion = func(gphome string) (semver.Version, error) {
+		GetTargetVersion = func(gphome any) (semver.Version, error) {
 			return semver.Version{}, expected
 		}
 		defer func() {

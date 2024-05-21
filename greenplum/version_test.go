@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/blang/semver/v4"
 
 	"github.com/greenplum-db/gpupgrade/testutils/exectest"
@@ -59,6 +60,20 @@ func FailedMain() {
 	os.Exit(1)
 }
 
+func SelectVersion_5_29_12_dev(mock sqlmock.Sqlmock) *sqlmock.Rows{
+	row := sqlmock.NewRows([]string{"version"})
+	row.AddRow("PostgreSQL 8.3.23 (Greenplum Database 5.29.12+dev.4.ge448944cfc build dev) on x86_64-pc-linux-gnu, compiled by GCC gcc (Ubuntu 12.3.0-1ubuntu1~23.04) 12.3.0, 64-bit compiled on Apr  4 2024 20:22:11")
+	mock.ExpectQuery("SELECT version()").WillReturnRows(row)
+	return row
+}
+
+func SelectVersion_6_27_1(mock sqlmock.Sqlmock) *sqlmock.Rows{
+	row := sqlmock.NewRows([]string{"version"})
+	row.AddRow("PostgreSQL 9.4.26 (Greenplum Database 6.27.1 build commit:ab5a612bfdc355ad2d601860dfb70a47778c8dd7) on x86_64-unknown-linux-gnu, compiled by gcc (Ubuntu 12.3.0-1ubuntu1~23.04) 12.3.0, 64-bit compiled on May 15 2024 13:45:10")
+	mock.ExpectQuery("SELECT version()").WillReturnRows(row)
+	return row
+}
+
 func init() {
 	exectest.RegisterMains(
 		PostgresGPVersion_5_27_0_beta,
@@ -74,7 +89,7 @@ func init() {
 	)
 }
 
-func TestVersion_Parsing(t *testing.T) {
+func TestVersion_ParsingGPHome(t *testing.T) {
 	testlog.SetupTestLogger()
 
 	cases := []struct {
@@ -140,4 +155,38 @@ func TestVersion_Parsing(t *testing.T) {
 			t.Errorf("returned error %#v, want type %T", err, exitErr)
 		}
 	})
+}
+
+func TestVersion_ParsingSelectVersion(t *testing.T) {
+	testlog.SetupTestLogger()
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("couldn't create sqlmock: %v", err)
+	}
+	defer func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("%v", err)
+		}
+	}()
+
+	cases := []struct {
+		name           string
+		row            *sqlmock.Rows
+		expected       semver.Version
+	}{
+		{"handles development versions", SelectVersion_5_29_12_dev(mock), semver.MustParse("5.29.12")},
+		{"handles release versions", SelectVersion_6_27_1(mock), semver.MustParse("6.27.1")},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			version, err := Version(db)
+			if err != nil {
+				t.Errorf("unexpected error: %+v", err)
+			}
+			if !version.EQ(c.expected) {
+				t.Errorf("got version %v, want %v", version, c.expected)
+			}
+		})
+	}
 }
