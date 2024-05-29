@@ -172,15 +172,11 @@ clean:
 		rm -rf rpm
 		rm -f gpupgrade-$(VERSION)*.rpm
 
-# You can override these from the command line.
+# You can override this from the command line.
 BRANCH ?= $(shell git rev-parse --abbrev-ref HEAD)
-GIT_URI ?= $(shell git ls-remote --get-url)
-
-ifeq ($(GIT_URI),https://github.com/greenplum-db/gpupgrade.git)
 ifeq ($(BRANCH),main)
 	PIPELINE_NAME := gpupgrade
 	FLY_TARGET := prod
-endif
 endif
 
 # Concourse does not allow "/" in pipeline names
@@ -217,11 +213,9 @@ pipeline:
 		ci/main/pipeline/6_upgrade_and_functional_jobs.yml \
 		ci/main/pipeline/7_publish_rc.yml > ci/main/generated/template.yml
 	PIPELINE_VERSION="6" go generate ./ci/main
-	#NOTE-- make sure your gpupgrade-git-remote uses an https style git"
-	#NOTE-- such as https://github.com/greenplum-db/gpupgrade.git"
 	fly -t $(FLY_TARGET) set-pipeline -p $(PIPELINE_NAME) \
 		-c ci/main/generated/pipeline.yml \
-		-v gpupgrade-git-remote=$(GIT_URI) \
+		-v gpupgrade-git-remote=git@github.com:greenplum-db/gpupgrade.git \
 		-v gpupgrade-git-branch=$(BRANCH)
 
 pipeline7:
@@ -234,11 +228,9 @@ pipeline7:
 		ci/main/pipeline/6_upgrade_and_functional_jobs.yml \
 		ci/main/pipeline/7_publish_rc.yml > ci/main/generated/template.yml
 	PIPELINE_VERSION="7" go generate ./ci/main
-	#NOTE-- make sure your gpupgrade-git-remote uses an https style git"
-	#NOTE-- such as https://github.com/greenplum-db/gpupgrade.git"
 	fly -t $(FLY_TARGET) set-pipeline -p 7-$(PIPELINE_NAME) \
 		-c ci/main/generated/pipeline.yml \
-		-v gpupgrade-git-remote=$(GIT_URI) \
+		-v gpupgrade-git-remote=git@github.com:greenplum-db/gpupgrade.git \
 		-v gpupgrade-git-branch=$(BRANCH)
 
 functional-pipeline:
@@ -249,11 +241,9 @@ functional-pipeline:
 		ci/functional/pipeline/4_initialize_upgrade_cluster_validate.yml \
 		ci/functional/pipeline/5_teardown_cluster.yml > ci/functional/generated/template.yml
 	go generate ./ci/functional
-	#NOTE-- make sure your gpupgrade-git-remote uses an https style git"
-	#NOTE-- such as https://github.com/greenplum-db/gpupgrade.git"
 	fly -t $(FLY_TARGET) set-pipeline -p $(PIPELINE_NAME) \
 		-c ci/functional/generated/pipeline.yml \
-		-v gpupgrade-git-remote=$(GIT_URI) \
+		-v gpupgrade-git-remote=git@github.com:greenplum-db/gpupgrade.git \
 		-v gpupgrade-git-branch=$(BRANCH)
 
 expose-pipeline:

@@ -24,7 +24,8 @@ resources:
   - name: gpupgrade_src
     type: git
     source:
-      uri: ((gpupgrade-git-remote))
+      uri: ((upgrade/gpupgrade-git-remote))
+      private_key: ((upgrade/gpupgrade-deploy-key))
       branch: ((gpupgrade-git-branch))
       fetch_tags: true
 
