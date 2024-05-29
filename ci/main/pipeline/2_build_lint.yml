@@ -16,6 +16,8 @@ jobs:
         outputs:
           - name: built_oss
           - name: built_enterprise
+        params:
+                GIT_SSH_KEY: ((server/gpdb-deploy-key))
         run:
           path: gpupgrade_src/ci/main/scripts/build.bash
     - in_parallel:
