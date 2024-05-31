@@ -26,7 +26,7 @@ import (
 	"github.com/greenplum-db/gpupgrade/utils/errorlist"
 )
 
-func ApplyDataMigrationScripts(streams step.OutStreams, nonInteractive bool, gphome string, port int, logDir string, currentScriptDirFS fs.FS, currentScriptDir string, phase idl.Step) error {
+func ApplyDataMigrationScripts(streams step.OutStreams, nonInteractive bool, gphome string, port int, logDir string, currentScriptDirFS fs.FS, currentScriptDir string, phase idl.Step, jobs uint) error {
 	_, err := currentScriptDirFS.Open(phase.String())
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -91,10 +91,10 @@ func ApplyDataMigrationScripts(streams step.OutStreams, nonInteractive bool, gph
 				decor.Name("  "+filepath.Base(scriptDir), decor.WCSyncSpaceR),
 				decor.CountersNoUnit("  %d/%d scripts applied")))
 
-		go func(gphome string, port int, scriptDir string, bar *mpb.Bar) {
+		go func(gphome string, port int, scriptDir string, bar *mpb.Bar, jobs uint) {
 			defer wg.Done()
 
-			output, aErr := ApplyDataMigrationScriptSubDir(gphome, port, utils.System.DirFS(scriptDir), scriptDir, bar)
+			output, aErr := ApplyDataMigrationScriptSubDir(gphome, port, utils.System.DirFS(scriptDir), scriptDir, bar, jobs)
 			if aErr != nil {
 				errChan <- aErr
 				bar.Abort(false)
@@ -102,7 +102,8 @@ func ApplyDataMigrationScripts(streams step.OutStreams, nonInteractive bool, gph
 			}
 
 			outputChan <- output
-		}(gphome, port, scriptDir, bar)
+
+		}(gphome, port, scriptDir, bar, jobs)
 	}
 
 	progressBar.Wait()
@@ -149,7 +150,7 @@ func countScripts(entries []fs.DirEntry) int {
 	return numScripts
 }
 
-func ApplyDataMigrationScriptSubDir(gphome string, port int, scriptDirFS fs.FS, scriptDir string, bar *mpb.Bar) ([]byte, error) {
+func ApplyDataMigrationScriptSubDir(gphome string, port int, scriptDirFS fs.FS, scriptDir string, bar *mpb.Bar, jobs uint) ([]byte, error) {
 	entries, err := utils.System.ReadDirFS(scriptDirFS, ".")
 	if err != nil {
 		return nil, err
@@ -166,16 +167,25 @@ func ApplyDataMigrationScriptSubDir(gphome string, port int, scriptDirFS fs.FS, 
 		}
 
 		log.Printf("  %s\n", entry.Name())
-		output, err := ApplySQLFile(gphome, port, "postgres", filepath.Join(scriptDir, entry.Name()), "-v", "ON_ERROR_STOP=1", "--echo-queries")
-		if err != nil {
-			return nil, err
+
+		// TODO: How the scripts are applied will be reworked as more types of scripts are added
+		// to the parallel execution framework. For now, we just check the script name and if it's
+		// an index script, we apply it with the index script framework.
+		if isIndexScript(entry.Name()) {
+			indexes := NewIndexes()
+			err := indexes.Apply(filepath.Join(scriptDir, entry.Name()), port, jobs)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			output, err := ApplySQLFile(gphome, port, "postgres", filepath.Join(scriptDir, entry.Name()), "-v", "ON_ERROR_STOP=1", "--echo-queries")
+			if err != nil {
+				return nil, err
+			}
+			outputs = append(outputs, output...)
 		}
-
-		outputs = append(outputs, output...)
-
 		bar.Increment()
 	}
-
 	return outputs, nil
 }
 
@@ -349,4 +359,8 @@ func ParseSelection(input string, allScripts Scripts) (Scripts, error) {
 	}
 
 	return selectedScripts, nil
+}
+
+func isIndexScript(script string) bool {
+	return strings.Contains(script, "partition_indexes")
 }

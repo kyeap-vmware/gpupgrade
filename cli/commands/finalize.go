@@ -83,7 +83,7 @@ func finalize() *cobra.Command {
 
 				currentDir := filepath.Join(response.GetLogArchiveDirectory(), "data-migration-scripts", "current")
 				return commanders.ApplyDataMigrationScripts(streams, nonInteractive, target.GPHome, target.CoordinatorPort(),
-					response.GetLogArchiveDirectory(), utils.System.DirFS(currentDir), currentDir, idl.Step_finalize)
+					response.GetLogArchiveDirectory(), utils.System.DirFS(currentDir), currentDir, idl.Step_finalize, jobs)
 			})
 
 			st.Run(idl.Substep_analyze_target_cluster, func(streams step.OutStreams) error {
