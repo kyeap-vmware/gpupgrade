@@ -54,7 +54,7 @@ type Config struct {
 	Mode            idl.Mode
 	UseHbaHostnames bool
 	UpgradeID       string
-	PgUpgradeJobs   uint
+	Jobs            uint
 }
 
 func (conf *Config) Write() error {
@@ -85,7 +85,7 @@ func GetConfigFile() string {
 	return filepath.Join(utils.GetStateDir(), ConfigFileName)
 }
 
-func Create(db *sql.DB, hubPort int, agentPort int, sourceGPHome string, targetGPHome string, mode idl.Mode, useHbaHostnames bool, ports []int, pgUpgradeJobs uint, parentBackupDirs string) (Config, error) {
+func Create(db *sql.DB, hubPort int, agentPort int, sourceGPHome string, targetGPHome string, mode idl.Mode, useHbaHostnames bool, ports []int, jobs uint, parentBackupDirs string) (Config, error) {
 	source, err := greenplum.ClusterFromDB(db, sourceGPHome, idl.ClusterDestination_source)
 	if err != nil {
 		return Config{}, xerrors.Errorf("retrieve source configuration: %w", err)
@@ -108,7 +108,7 @@ func Create(db *sql.DB, hubPort int, agentPort int, sourceGPHome string, targetG
 	config.Mode = mode
 	config.UseHbaHostnames = useHbaHostnames
 	config.UpgradeID = upgrade.NewID()
-	config.PgUpgradeJobs = pgUpgradeJobs
+	config.Jobs = jobs
 	config.BackupDirs, err = backupdir.ParseParentBackupDirs(parentBackupDirs, source)
 	if err != nil {
 		return Config{}, err

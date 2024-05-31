@@ -48,7 +48,7 @@ func Run(stdout, stderr io.Writer, opts *idl.PgOptions) error {
 		"--old-port", opts.GetOldPort(),
 		"--new-port", opts.GetNewPort(),
 		"--mode", opts.GetPgUpgradeMode().String(),
-		"--jobs", opts.GetPgUpgradeJobs(),
+		"--jobs", opts.GetJobs(),
 	}
 
 	// TODO: Update this to at least 7.2.0 once it's released

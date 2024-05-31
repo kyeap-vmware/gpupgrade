@@ -137,11 +137,11 @@ func (s *Server) InitializeCreateCluster(req *idl.InitializeCreateClusterRequest
 
 		pgUpgradeTimestamp := utils.System.Now().Format(TimeStringFormat)
 
-		if err := UpgradeCoordinator(stream, s.BackupDirs.CoordinatorBackupDir, req.GetPgUpgradeVerbose(), req.GetSkipPgUpgradeChecks(), s.PgUpgradeJobs, s.Source, s.Intermediate, idl.PgOptions_check, s.Mode, pgUpgradeTimestamp); err != nil {
+		if err := UpgradeCoordinator(stream, s.BackupDirs.CoordinatorBackupDir, req.GetPgUpgradeVerbose(), req.GetSkipPgUpgradeChecks(), s.Jobs, s.Source, s.Intermediate, idl.PgOptions_check, s.Mode, pgUpgradeTimestamp); err != nil {
 			return err
 		}
 
-		return UpgradePrimaries(s.agentConns, s.BackupDirs.AgentHostsToBackupDir, req.GetPgUpgradeVerbose(), req.GetSkipPgUpgradeChecks(), s.PgUpgradeJobs, s.Source, s.Intermediate, idl.PgOptions_check, s.Mode, pgUpgradeTimestamp)
+		return UpgradePrimaries(s.agentConns, s.BackupDirs.AgentHostsToBackupDir, req.GetPgUpgradeVerbose(), req.GetSkipPgUpgradeChecks(), s.Jobs, s.Source, s.Intermediate, idl.PgOptions_check, s.Mode, pgUpgradeTimestamp)
 	})
 
 	message := &idl.Message{Contents: &idl.Message_Response{Response: &idl.Response{Contents: &idl.Response_InitializeResponse{

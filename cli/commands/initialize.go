@@ -43,7 +43,7 @@ func initialize() *cobra.Command {
 	var pgUpgradeVerbose bool
 	var skipVersionCheck bool
 	var skipPgUpgradeChecks bool
-	var pgUpgradeJobs uint
+	var jobs uint
 	var ports string
 	var mode string
 	var useHbaHostnames bool
@@ -168,7 +168,7 @@ func initialize() *cobra.Command {
 			confirmationText := fmt.Sprintf(initializeConfirmationText,
 				cases.Title(language.English).String(idl.Step_initialize.String()),
 				initializeSubsteps, logdir, configPath,
-				sourcePort, sourceGPHome, targetGPHome, mode, diskFreeRatio, pgUpgradeJobs, useHbaHostnames, dynamicLibraryPath, ports, hubPort, agentPort)
+				sourcePort, sourceGPHome, targetGPHome, mode, diskFreeRatio, jobs, useHbaHostnames, dynamicLibraryPath, ports, hubPort, agentPort)
 
 			st, err := clistep.Begin(idl.Step_initialize, verbose, nonInteractive, confirmationText)
 			if err != nil {
@@ -198,7 +198,7 @@ func initialize() *cobra.Command {
 					db, hubPort, agentPort,
 					filepath.Clean(sourceGPHome),
 					filepath.Clean(targetGPHome),
-					mode, useHbaHostnames, parsedPorts, pgUpgradeJobs,
+					mode, useHbaHostnames, parsedPorts, jobs,
 					parentBackupDirs,
 				)
 				if err != nil {
@@ -301,7 +301,7 @@ func initialize() *cobra.Command {
 	subInit.Flags().BoolVar(&pgUpgradeVerbose, "pg-upgrade-verbose", false, "execute pg_upgrade with --verbose")
 	subInit.Flags().BoolVar(&skipPgUpgradeChecks, "skip-pg-upgrade-checks", false, "skips pg_upgrade checks")
 	subInit.Flags().MarkHidden("skip-pg-upgrade-checks") //nolint
-	subInit.Flags().UintVar(&pgUpgradeJobs, "pg-upgrade-jobs", 4, "databases to upgrade in parallel based on the number of specified threads. Defaults to 4.")
+	subInit.Flags().UintVar(&jobs, "jobs", 4, "number of jobs to run for steps that can run in parallel. Defaults to 4.")
 	subInit.Flags().StringVarP(&file, "file", "f", "", "the configuration file to use")
 	subInit.Flags().BoolVar(&nonInteractive, "non-interactive", false, "do not prompt for confirmation to proceed")
 	subInit.Flags().MarkHidden("non-interactive") //nolint

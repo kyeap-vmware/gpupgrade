@@ -732,7 +732,7 @@ func TestRun(t *testing.T) {
 				Role:               greenplum.PrimaryRole,
 				ContentID:          3,
 				TargetVersion:      "6.20.0",
-				PgUpgradeJobs:      "123",
+				Jobs:               "123",
 				PgUpgradeTimestamp: "RandomTimestamp",
 			},
 		},

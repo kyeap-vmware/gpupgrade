@@ -24,6 +24,7 @@ import (
 func finalize() *cobra.Command {
 	var verbose bool
 	var nonInteractive bool
+	var jobs uint
 
 	cmd := &cobra.Command{
 		Use:   "finalize",
@@ -134,5 +135,6 @@ If you postpone creating statistics then after the upgrade run "vacuumdb --all -
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "print the output stream from all substeps")
 	cmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "do not prompt for confirmation to proceed")
 	cmd.Flags().MarkHidden("non-interactive") //nolint
+	cmd.Flags().UintVar(&jobs, "jobs", 4, "number of jobs to run for steps that can run in parallel. Defaults to 4.")
 	return addHelpToCommand(cmd, FinalizeHelp)
 }
