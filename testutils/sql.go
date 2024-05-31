@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/blang/semver/v4"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/greenplum-db/gpupgrade/greenplum"
 )
@@ -56,4 +58,45 @@ func MockCluster() *greenplum.Cluster {
 	}
 
 	return &cluster
+}
+
+// MockPooler is a mock implementation of the Pooler interface.
+type MockPooler struct {
+	mock.Mock
+	database   string
+	version    semver.Version
+	jobs       uint
+	connString string
+}
+
+func (m *MockPooler) Exec(query string, args ...any) error {
+	return m.Called(query, args).Error(0)
+}
+
+func (m *MockPooler) Query(query string, args ...any) (*greenplum.Rows, error) {
+	return m.Called(query, args).Get(0).(*greenplum.Rows), m.Called(query, args).Error(1)
+}
+
+func (m *MockPooler) Select(dest any, query string, args ...any) error {
+	return m.Called(dest, query, args).Error(0)
+}
+
+func (m *MockPooler) Close() {
+	m.Called()
+}
+
+func (m *MockPooler) Database() string {
+	return m.database
+}
+
+func (m *MockPooler) Version() semver.Version {
+	return m.version
+}
+
+func (m *MockPooler) Jobs() uint {
+	return m.jobs
+}
+
+func (m *MockPooler) ConnString() string {
+	return m.connString
 }
