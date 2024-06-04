@@ -13,7 +13,6 @@ import (
 	"github.com/greenplum-db/gpupgrade/greenplum"
 	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/step"
-	"github.com/greenplum-db/gpupgrade/utils/errorlist"
 )
 
 func UpgradeMirrorsUsingRsync(agentConns []*idl.Connection, source *greenplum.Cluster, intermediate *greenplum.Cluster, useHbaHostnames bool) error {
@@ -21,13 +20,14 @@ func UpgradeMirrorsUsingRsync(agentConns []*idl.Connection, source *greenplum.Cl
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if cErr := db.Close(); cErr != nil {
-			err = errorlist.Append(err, cErr)
-		}
-	}()
 
 	if err := CreateReplicationSlots(db); err != nil {
+		return err
+	}
+	// We're finished with the db connection, so close it, else
+	// the open idle connection will cause subsequent gpstop commands
+	// to wait for timeout.
+	if err := db.Close(); err != nil {
 		return err
 	}
 
