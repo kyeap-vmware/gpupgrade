@@ -9,3 +9,4 @@ test: views_with_removed_types
 test: disallowed_pg_operator
 test: views_with_changed_function_signatures
 test: views_with_removed_columns
+test: views_with_removed_tables

@@ -1,0 +1,65 @@
+-- Copyright (c) 2017-2024 VMware, Inc. or its affiliates
+-- SPDX-License-Identifier: Apache-2.0
+
+--------------------------------------------------------------------------------
+-- Create and setup non-upgradeable objects
+--------------------------------------------------------------------------------
+
+DROP SCHEMA IF EXISTS removed_tables CASCADE;
+DROP SCHEMA
+CREATE SCHEMA removed_tables;
+CREATE SCHEMA
+SET search_path to removed_tables;
+SET
+
+CREATE VIEW v01 AS SELECT * from pg_partition;
+CREATE VIEW
+CREATE VIEW v02 AS SELECT * from pg_partition_rule;
+CREATE VIEW
+CREATE VIEW v03 AS SELECT * from pg_partition_encoding;
+CREATE VIEW
+CREATE VIEW v04 AS (SELECT * from (select * from pg_partition_rule)sub);
+CREATE VIEW
+CREATE VIEW v05 AS SELECT * from pg_partition_rule, pg_database;
+CREATE VIEW
+CREATE VIEW v06 AS (WITH dep_rel_cte AS (SELECT * FROM pg_partition_rule) SELECT * FROM dep_rel_cte);
+CREATE VIEW
+CREATE VIEW v07 AS SELECT relnatts FROM pg_class WHERE 0 < ALL (SELECT parnatts FROM pg_partition);
+CREATE VIEW
+
+---------------------------------------------------------------------------------
+--- Assert that pg_upgrade --check correctly detects the non-upgradeable objects
+---------------------------------------------------------------------------------
+!\retcode gpupgrade initialize --source-gphome="${GPHOME_SOURCE}" --target-gphome=${GPHOME_TARGET} --source-master-port=${PGPORT} --disk-free-ratio 0 --non-interactive;
+-- start_ignore
+
+-- end_ignore
+(exited with code 1)
+! find $(ls -dt ~/gpAdminLogs/gpupgrade/pg_upgrade_*/ | head -1) -name "views_with_removed_tables.txt" -exec cat {} +;
+In database: isolation2test
+  removed_tables.v01
+  removed_tables.v02
+  removed_tables.v03
+  removed_tables.v04
+  removed_tables.v05
+  removed_tables.v06
+  removed_tables.v07
+
+
+---------------------------------------------------------------------------------
+--- Cleanup
+---------------------------------------------------------------------------------
+DROP VIEW v07;
+DROP VIEW
+DROP VIEW v06;
+DROP VIEW
+DROP VIEW v05;
+DROP VIEW
+DROP VIEW v04;
+DROP VIEW
+DROP VIEW v03;
+DROP VIEW
+DROP VIEW v02;
+DROP VIEW
+DROP VIEW v01;
+DROP VIEW
