@@ -11,6 +11,46 @@ import (
 	"golang.org/x/xerrors"
 )
 
+const (
+	analyzeDataTablesQuery = `
+WITH all_tables AS (
+  SELECT c.oid, n.nspname, c.relname
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE (c.relkind='r'::char OR c.relkind = 'm'::char)
+  AND (c.relnamespace >= 16384 OR n.nspname = 'public' OR n.nspname = 'pg_catalog')
+  AND c.oid NOT IN (SELECT reloid FROM pg_exttable)
+),
+midlevel_partitions AS (
+  SELECT c.oid, n.nspname,
+  c.relname
+  FROM pg_class c
+  LEFT JOIN pg_partition_rule pr ON pr.parchildrelid=c.oid
+  LEFT JOIN pg_partition p ON p.oid=pr.paroid
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE p.parrelid != 0 AND c.relhassubclass='t'
+),
+root_partitions AS (
+SELECT DISTINCT c.oid, n.nspname, c.relname
+FROM pg_class c
+JOIN pg_namespace n ON n.oid=c.relnamespace
+JOIN pg_partition p ON p.parrelid=c.oid
+WHERE p.paristemplate = false
+)
+SELECT 'ANALYZE ' || quote_ident(nspname) || '.' || quote_ident(relname) || ';' AS analyze_command
+FROM all_tables
+WHERE oid NOT IN (SELECT oid FROM midlevel_partitions)
+AND oid NOT IN (SELECT oid FROM root_partitions);
+`
+	analyzeRootPartitionsQuery = `
+SELECT DISTINCT 'ANALYZE ROOTPARTITION ' || quote_ident(n.nspname) || '.' || quote_ident(c.relname) || ';' AS analyzeroot_command
+FROM pg_class c
+JOIN pg_namespace n ON n.oid=c.relnamespace
+JOIN pg_partition p ON p.parrelid=c.oid
+WHERE p.paristemplate = false
+`
+)
+
 // Reindexes the indexes invalidated by pg_upgrade during the execute phase.
 // Refer to the following pg_upgrade functions:
 // old_8_3_invalidate_bpchar_pattern_ops_indexes
@@ -213,4 +253,81 @@ func getTSVectorCommands(db *sql.DB) ([]string, error) {
 		return nil, err
 	}
 	return commands, nil
+}
+
+
+func AnalyzeCluster(target *Cluster, jobs int32) error {
+	var err error
+
+	databases, err := target.GetDatabases()
+	if err != nil {
+		return err
+	}
+
+	for _, database := range databases {
+		err := AnalyzeDatabase(target, database, jobs)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func AnalyzeDatabase(target *Cluster, database string, jobs int32) error {
+	var err error
+	var dataTableCmds []string
+	var rootPartitionCmds []string
+
+	// Supress generating root stats for every partition
+	gucs := []string{"set optimizer_analyze_enable_merge_of_leaf_stats=off"}
+
+	pool, err := NewPoolerFunc(Port(target.CoordinatorPort()), Database(database), Gucs(gucs), Jobs(jobs))
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+
+	// Get the analyze commands for the data tables and root partitions
+	rows, err := pool.Query(analyzeDataTablesQuery)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var command string
+		err = rows.Scan(&command)
+		if err != nil {
+			return err
+		}
+		dataTableCmds = append(dataTableCmds, command)
+	}
+
+	rows, err = pool.Query(analyzeRootPartitionsQuery)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var command string
+		err = rows.Scan(&command)
+		if err != nil {
+			return err
+		}
+		rootPartitionCmds = append(rootPartitionCmds, command)
+	}
+
+	// Analyze the data tables first, then the root partitions
+	err = ExecuteCommands(target, database, dataTableCmds, jobs)
+	if err != nil {
+		return err
+	}
+
+	err = ExecuteCommands(target, database, rootPartitionCmds, jobs)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

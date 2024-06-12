@@ -5,4 +5,4 @@ test: gp_fastsequence user_defined_types_encoding distribution_key_and_data name
 test: aoco_dropped_col_and_encoding special_characters tsvector_column partitioned_tables
 
 test: clog_preservation
-test: vacuum_freeze_tables
+test: vacuum_freeze_tables analyze

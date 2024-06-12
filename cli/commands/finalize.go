@@ -93,10 +93,10 @@ func finalize() *cobra.Command {
 			st.Run(idl.Substep_analyze_target_cluster, func(streams step.OutStreams) error {
 				if !nonInteractive {
 					fmt.Println()
-					fmt.Println(`
-It is strongly recommended to create optimizer statistics to ensure performant operations. 
-However, this could take quite awhile and you may need your cluster now.
-If you postpone creating statistics then after the upgrade run "vacuumdb --all --analyze-in-stages".`)
+					fmt.Printf(`
+It is strongly recommended to create optimizer statistics to ensure performant operations.
+This step will generate statistics for each database by executing ANALYZE using %d parallel jobs.
+If you postpone creating statistics then after the upgrade run "vacuumdb --all --analyze-in-stages".`, jobs)
 					fmt.Println()
 
 					prompt := "Create optimizer statistics now?  Yy|Nn: "
@@ -109,7 +109,7 @@ If you postpone creating statistics then after the upgrade run "vacuumdb --all -
 					}
 				}
 
-				return target.RunGreenplumCmd(streams, "vacuumdb", "--all", "--analyze-only")
+				return greenplum.AnalyzeCluster(target, jobs)
 			})
 
 			st.Run(idl.Substep_delete_master_statedir, func(streams step.OutStreams) error {

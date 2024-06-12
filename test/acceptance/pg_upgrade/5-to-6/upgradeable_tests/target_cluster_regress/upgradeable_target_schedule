@@ -5,4 +5,4 @@ test: distribution_key_and_data name_data_type ao_table_multi_segfile aoco_table
 test: aoco_dropped_col_and_encoding special_characters tsvector_column partitioned_tables gp_fastsequence
 
 test: clog_preservation
-test: vacuum_freeze_tables
+test: vacuum_freeze_tables analyze

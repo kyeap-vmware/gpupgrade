@@ -62,7 +62,8 @@ If you have not already, execute the “%s” data migration scripts with
 "gpupgrade apply --gphome %s --port %d --input-dir %s --phase %s"
 
 If you postponed creating optimizer statistics run
-"vacuumdb --all --analyze-in-stages"`
+"vacuumdb --all --analyze-in-stages"
+for each database`
 
 var RevertCompletedText = `
 The source cluster is now running version %s.
