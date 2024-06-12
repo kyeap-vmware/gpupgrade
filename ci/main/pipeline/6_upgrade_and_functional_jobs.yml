@@ -39,9 +39,9 @@
         {{- end }}
         {{- if .TestExtensions }}
         - get: gptext_targz_source
-          resource: gptext_3.x_gpdb{{.Source}}_{{.Platform}}_targz
+          resource: gptext_3.x_gpdb{{.Source}}_{{.RpmVersion}}_targz
         - get: gptext_targz_target
-          resource: gptext_3.x_gpdb{{.Target}}_{{.Platform}}_targz
+          resource: gptext_3.x_gpdb{{.Target}}_{{.RpmVersion}}_targz
         - get: postgis_gppkg_source
           resource: postgis_2.x_gpdb{{.Source}}_{{.Platform}}_gppkg
         - get: postgis_gppkg_target
