@@ -366,6 +366,7 @@ func Isolation2_regress(t *testing.T, sourceVersion semver.Version, gphome strin
 		"--inputdir", inputDir,
 		"--outputdir", outputDir,
 		binDir, filepath.Join(gphome, "bin"),
+		"--host", "/tmp",
 		"--port", port,
 		tests,
 	)
