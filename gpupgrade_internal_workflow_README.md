@@ -38,8 +38,8 @@ https://github.com/greenplum-db/gpdb/blob/6X_STABLE/contrib/pg_upgrade/IMPLEMENT
 1. Copy control file settings to new coordinator (clog, xlog, xid)
 1. Recreate database and schemas on new coordinator using pg_restore
 1. Copy or link files (relfilenodes) to new cluster
-1. Set coordinator's frozenxid and minmxid
-1. Freeze coordinator to make everything visible for segments
+1. Set new coordinator's frozenxid and minmxid
+1. Freeze new coordinator to make everything visible for segments
 
 ### \*\*\*gpupgrade: COPY coordinator to segments to bootstrap segment upgrade\*\*\*
 
@@ -48,7 +48,7 @@ https://github.com/greenplum-db/gpdb/blob/6X_STABLE/contrib/pg_upgrade/IMPLEMENT
 1. Freeze all new cluster rows to remove references to clog entries
 1. Copy control file settings to new cluster (clog, xlog, xid)
 1. Set coordinator's frozenxid and minmxid
-1. Invalidate Indexes (bitmap indexes)
+1. Invalidate Indexes again (bitmap indexes only? further explained why again later)
 1. Set coordinator's frozenxid and minmxid again
 1. Copy or link files (relfilenodes) to new cluster
 1. Reset system identifier
@@ -69,53 +69,6 @@ gpupgrade uses pg_upgrade in the following manner:
     1. execute data migration finalize scripts
     1. regenerate indexes and stats?
 
-## Why are segments upgraded by copying MDD to segments?
-We would like to address this specific question because it is a big reason why
-pg_upgrade can be complicated. Originally this was done because it was thought
-that this would be more beneficial for performance. It was only later
-discovered that this is likely the only way upgrade could work for 5 > 6
-upgrade because segments do not contain enough schema data to dump and restore
-GPDB partition tables individually. Unfortunately, this method of upgrading
-segments comes with a few ramifications. All files except for the following are
-copied to segments.
-```
-internal.auto.conf
-postgresql.conf
-pg_hba.conf
-postmaster.opts
-gp_dbid
-gpssh.conf
-gpperfmon
-```
-
-## What are the ramifications of copying MDD to segments to perform segment schema upgrade?
-1. Existing MDD files are now on segments. Issues with this as the root cause
-   has manifested in several ways.
-    1. xids from coordinator ends up on segments, they must be edited to
-       ensure row visibility on the segment is correct.
-    1. pg_aoseg entries from the coordinator end up on the segments. It is
-       assumed that segment relfilenode transfer will overwrite the
-       coordinator's relfilenodes
-    1. AO aux Free Space Maps (FSM) and Visibility Maps (VM) files from the
-       coordinator end up on the segments. We need to ensure that the FSM and
-       VM of AO aux tables from coordinator do not get used by segments. User
-       tables are not so much of an issue because data is not stored on
-       coordinator so these files should be empty or not exist.
-1. pg_upgrade is fragmented because there are different code paths for
-   coordinator and segment upgrades. pg_upgrade can be running in dispatch or
-   segment mode.
-1. Developers must keep in mind that pg_upgrade is run twice during execute.
-   This has performance impacts because coordinator and segments cannot upgrade at
-   the same time.
-1. Indexes are marked invalid on the new coordinator which are then copied to
-   new segments. We must reset them temporarily on the new segment before we
-   query for all relations to make sure they are recognized when getting a list
-   of relations for relation matching that happens in gen_db_file_maps.<br>
-   **Invalidated indexes**: bitmap, gin, hash, bpchar_pattern_ops.<br>
-   **Dropped indexes**: partition table indexes
-1. One good thing about this method is we know oids will the consistent across
-   the cluster, which is needed for a GPDB cluster to function.
-
 ## GPDB pre-upgrade checks
 GPDB adds additional checks during pre-upgrade to ensure the smooth gpupgrade
 experience. A lot of the checks are just queries against the source cluster,
@@ -135,7 +88,7 @@ Example 6 > 7 view check for removed types
 
 
 ## Data Migration SQL scripts
-There are cases where some objects have configurations that are not legal on a
+There are cases where some objects have configurations that are not valid on a
 target cluster, but can be fixed with a bit a tweaking or just by remaking
 them.  To make migration as easy as possible for customers we may generate
 scripts that fix user objects to make them upgradable. Some scripts run during
@@ -320,7 +273,7 @@ pg_upgrade on coordinator
 │   ├── UPDATE pg_database SET datfrozenxid, datminmxid
 │   ├── UPDATE pg_class SET relfrozenxid
 │   └── UPDATE pg_class SET relminmxid
-└── freeze_master_data* <----- Freeze to make schema visibible on segments
+└── freeze_master_data* <----- Freeze to make schema visible on segments
     ├── VACUUM FREEZE
     └── VACUUM FREEZE pg_catalog.pg_database
 ```
@@ -471,6 +424,54 @@ pg_upgrade: preserve gp_fastsequence to prevent duplicate ctids
 [d1b94743b5e](https://github.com/greenplum-db/gpdb/commit/d1b94743b5e) - Set
 next OID before restoring schema during pg_upgrade
 
+## Why are segments upgraded by copying MDD to segments?
+We would like to address this specific question because it is a big reason why
+pg_upgrade can be complicated. Originally this was done because it was thought
+that this would be more beneficial for performance. It was only later
+discovered that this is likely the only way upgrade could work for 5 > 6
+upgrade because segments do not contain enough schema data to dump and restore
+GPDB partition tables individually. Unfortunately, this method of upgrading
+segments comes with a few ramifications. All files except for the following are
+copied to segments.
+```
+internal.auto.conf
+postgresql.conf
+pg_hba.conf
+postmaster.opts
+gp_dbid
+gpssh.conf
+gpperfmon
+```
+
+## What are the ramifications of copying MDD to segments to perform segment schema upgrade?
+1. Existing MDD files are now on segments. Issues with this as the root cause
+   has manifested in several ways.
+    1. xids from coordinator ends up on segments, they must be edited to
+       ensure row visibility on the segment is correct.
+    1. pg_aoseg entries from the coordinator end up on the segments. It is
+       assumed that segment relfilenode transfer will overwrite the
+       coordinator's relfilenodes
+    1. AO aux Free Space Maps (FSM) and Visibility Maps (VM) files from the
+       coordinator end up on the segments. We need to ensure that the FSM and
+       VM of AO aux tables from coordinator do not get used by segments. User
+       tables are not so much of an issue because data is not stored on
+       coordinator so these files should be empty or not exist.
+1. pg_upgrade is fragmented because there are different code paths for
+   coordinator and segment upgrades. pg_upgrade can be running in dispatch or
+   segment mode.
+1. Developers must keep in mind that pg_upgrade is run twice during execute.
+   This has performance impacts because coordinator and segments cannot upgrade at
+   the same time.
+1. Indexes are marked invalid on the new coordinator which are then copied to
+   new segments. We must reset them temporarily on the new segment before we
+   query for all relations to make sure they are recognized when getting a list
+   of relations for relation matching that happens in gen_db_file_maps.<br>
+   **Invalidated indexes**: bitmap, gin, hash, bpchar_pattern_ops.<br>
+   **Dropped indexes**: partition table indexes
+1. One good thing about this method is we know oids will the consistent across
+   the cluster, which is needed for a GPDB cluster to function.
+
+
 ## list of issues/commits that are needed due to upgrading segments using copy MDD method
 ##### 1. Fix in get_rel_infos to resolve aoblkdir edge case
 This fix is introduced in commit [466df4e26a](https://github.com/greenplum-db/gpdb/commit/466df4e26a).
@@ -550,6 +551,15 @@ After commit
 values are now transfered using relfilnodes. Segment relfilenode transfer will
 overwrite the coordinator's relfilenodes. Maybe there are edge cases where
 tuples exist on coordinator but not on segments?
+
+
+##### 5. Reset system identifier
+```
+/*
+ * Called for GPDB segments only -- since we have copied the master's
+ * pg_control file, we need to assign a new system identifier to each segment.
+ */
+```
 
 ---
 
@@ -717,3 +727,12 @@ It looks like they're left valid on the old cluster. But then they're disabled o
 Reset indexes will enable bitmap and then bpchar_pattern_ops indexes excluding gin, hash, bitmap.
 Why do gin and hash indexes not need resetting?
 
+### 9. Disable segment compatibility checks.
+Why do we run segment compatibility checks? It can potential cause upgrade
+failure because it happens after coordinator upgrade is complete. There doesn't
+seems to be a good reason to run the segment checks in our current gpupgrade
+workflow other then causing unecessary changes to pg_upgrade. The point of
+compatibility checks is to catch potential failures before upgrading a postgres
+instance. By the time we run segment compatibility checks, segments are already
+upgraded. Segments are upgraded by copying coordinator MDD to bootstrap
+segments. And this is done right after coordinator upgrade is successful.
