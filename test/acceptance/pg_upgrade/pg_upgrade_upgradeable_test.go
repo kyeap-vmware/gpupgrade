@@ -31,11 +31,6 @@ func Test_PgUpgrade_Upgradeable_Tests(t *testing.T) {
 	dir := "6-to-7"
 	if source.Version.Major == 5 {
 		dir = "5-to-6"
-	} else {
-		// Disables 6 > 7 upgradable tests in the pipeline. Because gpugprade
-		// does not work for 6 > 7, but we want to excercise pg_upgrade non
-		// upgradable tests.
-		return
 	}
 
 	testDir := filepath.Join(acceptance.MustGetRepoRoot(t), "test", "acceptance", "pg_upgrade", dir)
