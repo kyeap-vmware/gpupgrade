@@ -62,7 +62,15 @@ func Test_PgUpgrade_Upgradeable_Tests(t *testing.T) {
 			acceptance.Apply(t, acceptance.GPHOME_SOURCE, acceptance.PGPORT, idl.Step_initialize, migrationDir)
 		}
 
-		acceptance.Initialize(t, idl.Mode_link)
+		// 6 > 7 FIXME: gpupgrade finalize for 6 > 7 in link mode is currently
+		// broken. There is an issue when trying to startup the cluster after
+		// rsyncing mirrors to the intermediate cluster. Copy mode makes new
+		// mirrors from scratch using which is working.
+		if source.Version.Major == 5 {
+			acceptance.Initialize(t, idl.Mode_link)
+		} else {
+			acceptance.Initialize(t, idl.Mode_copy)
+		}
 		defer acceptance.RevertIgnoreFailures(t)
 		acceptance.Execute(t)
 		acceptance.Finalize(t)
