@@ -31,7 +31,9 @@ func Test_PgUpgrade_Migratable_Tests(t *testing.T) {
 	dir := "6-to-7"
 	if source.Version.Major == 5 {
 		dir = "5-to-6"
-	} else {
+	}
+
+	if source.Version.Major == 6 {
 		// Disables 6 > 7 migratable tests in the pipeline. Because gpugprade
 		// does not work for 6 > 7, but we want to excercise pg_upgrade non
 		// upgradable tests.
