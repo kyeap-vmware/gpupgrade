@@ -1,0 +1,28 @@
+-- Copyright (c) 2017-2023 VMware, Inc. or its affiliates
+-- SPDX-License-Identifier: Apache-2.0
+
+-- Test to ensure that tables with tsvector columns can be upgraded.
+
+--------------------------------------------------------------------------------
+-- Create and setup upgradeable objects
+--------------------------------------------------------------------------------
+CREATE TABLE tsvector_table(a int, b tsvector);
+CREATE
+INSERT INTO tsvector_table SELECT i, to_tsvector('english', 'aaa' || i || ' ' || 'bb' || i || ' ' || 'c' || i) FROM generate_series(1,10)i;
+INSERT 10
+CREATE INDEX tsvector_table_idx ON tsvector_table USING gist(b);
+CREATE
+SELECT * FROM tsvector_table;
+ a  | b                          
+----+----------------------------
+ 1  | 'c1':3 'bb1':2 'aaa1':1    
+ 2  | 'c2':3 'bb2':2 'aaa2':1    
+ 3  | 'c3':3 'bb3':2 'aaa3':1    
+ 4  | 'c4':3 'bb4':2 'aaa4':1    
+ 5  | 'c5':3 'bb5':2 'aaa5':1    
+ 6  | 'c6':3 'bb6':2 'aaa6':1    
+ 7  | 'c7':3 'bb7':2 'aaa7':1    
+ 8  | 'c8':3 'bb8':2 'aaa8':1    
+ 9  | 'c9':3 'bb9':2 'aaa9':1    
+ 10 | 'c10':3 'bb10':2 'aaa10':1 
+(10 rows)

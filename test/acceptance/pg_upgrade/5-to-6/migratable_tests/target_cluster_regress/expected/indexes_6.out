@@ -1,0 +1,511 @@
+-- Copyright (c) 2017-2023 VMware, Inc. or its affiliates
+-- SPDX-License-Identifier: Apache-2.0.
+
+-- The indexes in this test can be migrated, but are marked as
+-- invalid on the target cluster during execute. They must be
+-- REINDEX'd on the target cluster during finalize to rebuild
+-- and reset them to valid.
+
+-------------------------------------------------------------------------------
+-- Validate that the indexes still work after finalize or revert
+-------------------------------------------------------------------------------
+
+-- Show what the indexes are
+SELECT c.relname, a.amname, i.indisvalid FROM pg_class c JOIN pg_am a ON c.relam = a.oid JOIN pg_index i ON i.indexrelid = c.oid WHERE c.relname SIMILAR TO '(ao|aoco|heap)_with_(btree|bitmap|gist|bpchar_pattern_ops)_idx';
+ relname                          | amname | indisvalid 
+----------------------------------+--------+------------
+ aoco_with_bitmap_idx             | bitmap | t          
+ ao_with_bitmap_idx               | bitmap | t          
+ ao_with_btree_idx                | btree  | t          
+ ao_with_gist_idx                 | gist   | t          
+ aoco_with_btree_idx              | btree  | t          
+ aoco_with_gist_idx               | gist   | t          
+ heap_with_bpchar_pattern_ops_idx | btree  | t          
+ heap_with_bitmap_idx             | bitmap | t          
+(8 rows)
+
+-- Verify there are no invalid indexes
+SELECT c.relname, i.indisvalid FROM pg_class c JOIN pg_index i ON i.indexrelid = c.oid WHERE i.indisvalid = false;
+ relname | indisvalid 
+---------+------------
+(0 rows)
+
+SET enable_indexscan = true;
+SET
+SET enable_bitmapscan = true;
+SET
+SET enable_seqscan = false;
+SET
+SET optimizer = off;
+SET
+
+-- Verify that the indexes are still usable after upgrade
+EXPLAIN SELECT * FROM heap_with_bpchar_pattern_ops WHERE b::bpchar LIKE '1';
+ QUERY PLAN                                                                                                                  
+-----------------------------------------------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=0.14..200.15 rows=1 width=6)                                                
+   ->  Index Scan using heap_with_bpchar_pattern_ops_idx on heap_with_bpchar_pattern_ops  (cost=0.14..200.15 rows=1 width=6) 
+         Index Cond: (b = '1'::bpchar)                                                                                       
+         Filter: (b ~~ '1'::text)                                                                                            
+ Optimizer: Postgres query optimizer                                                                                         
+(5 rows)
+EXPLAIN SELECT * FROM heap_with_bitmap WHERE b = 1;
+ QUERY PLAN                                                                                          
+-----------------------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=0.00..200.02 rows=1 width=8)                        
+   ->  Index Scan using heap_with_bitmap_idx on heap_with_bitmap  (cost=0.00..200.02 rows=1 width=8) 
+         Index Cond: (b = 1)                                                                         
+ Optimizer: Postgres query optimizer                                                                 
+(4 rows)
+EXPLAIN SELECT * FROM ao_with_btree WHERE b > 8;
+ QUERY PLAN                                                                             
+----------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=200.15..300.18 rows=3 width=8)         
+   ->  Bitmap Heap Scan on ao_with_btree  (cost=200.15..300.18 rows=1 width=8)          
+         Recheck Cond: (b > 8)                                                          
+         ->  Bitmap Index Scan on ao_with_btree_idx  (cost=0.00..200.15 rows=1 width=0) 
+               Index Cond: (b > 8)                                                      
+ Optimizer: Postgres query optimizer                                                    
+(6 rows)
+EXPLAIN SELECT * FROM ao_with_bitmap WHERE b = 1;
+ QUERY PLAN                                                                              
+-----------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=200.02..300.04 rows=3 width=8)          
+   ->  Bitmap Heap Scan on ao_with_bitmap  (cost=200.02..300.04 rows=1 width=8)          
+         Recheck Cond: (b = 1)                                                           
+         ->  Bitmap Index Scan on ao_with_bitmap_idx  (cost=0.00..200.01 rows=1 width=0) 
+               Index Cond: (b = 1)                                                       
+ Optimizer: Postgres query optimizer                                                     
+(6 rows)
+EXPLAIN SELECT * FROM ao_with_gist WHERE b @@ to_tsquery('footext1');
+ QUERY PLAN                                                                            
+---------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=200.16..300.21 rows=5 width=21)       
+   ->  Bitmap Heap Scan on ao_with_gist  (cost=200.16..300.21 rows=2 width=21)         
+         Recheck Cond: (b @@ '''footext1'''::tsquery)                                  
+         ->  Bitmap Index Scan on ao_with_gist_idx  (cost=0.00..200.16 rows=2 width=0) 
+               Index Cond: (b @@ '''footext1'''::tsquery)                              
+ Optimizer: Postgres query optimizer                                                   
+(6 rows)
+EXPLAIN SELECT * FROM aoco_with_btree WHERE b > 8;
+ QUERY PLAN                                                                               
+------------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=200.15..300.18 rows=3 width=8)           
+   ->  Bitmap Heap Scan on aoco_with_btree  (cost=200.15..300.18 rows=1 width=8)          
+         Recheck Cond: (b > 8)                                                            
+         ->  Bitmap Index Scan on aoco_with_btree_idx  (cost=0.00..200.15 rows=1 width=0) 
+               Index Cond: (b > 8)                                                        
+ Optimizer: Postgres query optimizer                                                      
+(6 rows)
+EXPLAIN SELECT * FROM aoco_with_bitmap WHERE b = 1;
+ QUERY PLAN                                                                                
+-------------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=200.02..300.04 rows=3 width=8)            
+   ->  Bitmap Heap Scan on aoco_with_bitmap  (cost=200.02..300.04 rows=1 width=8)          
+         Recheck Cond: (b = 1)                                                             
+         ->  Bitmap Index Scan on aoco_with_bitmap_idx  (cost=0.00..200.01 rows=1 width=0) 
+               Index Cond: (b = 1)                                                         
+ Optimizer: Postgres query optimizer                                                       
+(6 rows)
+EXPLAIN SELECT * FROM aoco_with_gist WHERE b @@ to_tsquery('footext1');
+ QUERY PLAN                                                                              
+-----------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=200.16..300.21 rows=5 width=21)         
+   ->  Bitmap Heap Scan on aoco_with_gist  (cost=200.16..300.21 rows=2 width=21)         
+         Recheck Cond: (b @@ '''footext1'''::tsquery)                                    
+         ->  Bitmap Index Scan on aoco_with_gist_idx  (cost=0.00..200.16 rows=2 width=0) 
+               Index Cond: (b @@ '''footext1'''::tsquery)                                
+ Optimizer: Postgres query optimizer                                                     
+(6 rows)
+SELECT * FROM heap_with_bpchar_pattern_ops WHERE b::bpchar LIKE '1';
+ a | b 
+---+---
+ 1 | 1 
+(1 row)
+SELECT * FROM heap_with_bitmap WHERE b = 1;
+ a | b 
+---+---
+ 1 | 1 
+(1 row)
+SELECT * FROM ao_with_btree WHERE b > 8;
+ a  | b  
+----+----
+ 9  | 9  
+ 10 | 10 
+(2 rows)
+SELECT * FROM ao_with_bitmap WHERE b = 1;
+ a | b 
+---+---
+ 1 | 1 
+ 6 | 1 
+(2 rows)
+SELECT * FROM ao_with_gist WHERE b @@ to_tsquery('footext1');
+ a | b          
+---+------------
+ 1 | 'footext1' 
+ 1 | 'footext1' 
+ 1 | 'footext1' 
+ 1 | 'footext1' 
+(4 rows)
+SELECT * FROM aoco_with_btree WHERE b > 8;
+ a  | b  
+----+----
+ 9  | 9  
+ 10 | 10 
+(2 rows)
+SELECT * FROM aoco_with_bitmap WHERE b = 1;
+ a | b 
+---+---
+ 1 | 1 
+ 6 | 1 
+(2 rows)
+SELECT * FROM aoco_with_gist WHERE b @@ to_tsquery('footext1');
+ a | b          
+---+------------
+ 1 | 'footext1' 
+ 1 | 'footext1' 
+ 1 | 'footext1' 
+ 1 | 'footext1' 
+(4 rows)
+
+-- Verify that new inserts can be found via the index
+INSERT INTO heap_with_bpchar_pattern_ops SELECT i,i::bpchar FROM generate_series(11,20)i;
+INSERT 10
+INSERT INTO heap_with_bitmap SELECT i,i FROM generate_series(11,20)i;
+INSERT 10
+INSERT INTO ao_with_btree SELECT i,i FROM generate_series(11,20)i;
+INSERT 10
+INSERT INTO ao_with_bitmap SELECT i,i%3 FROM generate_series(1,10)i;
+INSERT 10
+INSERT INTO ao_with_gist SELECT 1,j.res::tsvector FROM (SELECT 'footext' || i%4 AS res FROM generate_series(1,10) i) j;
+INSERT 10
+INSERT INTO aoco_with_btree SELECT i,i FROM generate_series(11,20)i;
+INSERT 10
+INSERT INTO aoco_with_bitmap SELECT i,i%3 FROM generate_series(1,10)i;
+INSERT 10
+INSERT INTO aoco_with_gist SELECT 1,j.res::tsvector FROM (SELECT 'footext' || i%4 AS res FROM generate_series(1,10) i) j;
+INSERT 10
+
+EXPLAIN SELECT * FROM heap_with_bpchar_pattern_ops WHERE b::bpchar LIKE '11';
+ QUERY PLAN                                                                                                                  
+-----------------------------------------------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=0.14..200.15 rows=1 width=6)                                                
+   ->  Index Scan using heap_with_bpchar_pattern_ops_idx on heap_with_bpchar_pattern_ops  (cost=0.14..200.15 rows=1 width=6) 
+         Index Cond: (b = '11'::bpchar)                                                                                      
+         Filter: (b ~~ '11'::text)                                                                                           
+ Optimizer: Postgres query optimizer                                                                                         
+(5 rows)
+EXPLAIN SELECT * FROM heap_with_bitmap WHERE b = 1;
+ QUERY PLAN                                                                                          
+-----------------------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=0.00..200.02 rows=1 width=8)                        
+   ->  Index Scan using heap_with_bitmap_idx on heap_with_bitmap  (cost=0.00..200.02 rows=1 width=8) 
+         Index Cond: (b = 1)                                                                         
+ Optimizer: Postgres query optimizer                                                                 
+(4 rows)
+EXPLAIN SELECT * FROM ao_with_btree WHERE b > 11;
+ QUERY PLAN                                                                             
+----------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=100.14..200.16 rows=1 width=8)         
+   ->  Bitmap Heap Scan on ao_with_btree  (cost=100.14..200.16 rows=1 width=8)          
+         Recheck Cond: (b > 11)                                                         
+         ->  Bitmap Index Scan on ao_with_btree_idx  (cost=0.00..100.14 rows=1 width=0) 
+               Index Cond: (b > 11)                                                     
+ Optimizer: Postgres query optimizer                                                    
+(6 rows)
+EXPLAIN SELECT * FROM ao_with_bitmap WHERE b = 1;
+ QUERY PLAN                                                                              
+-----------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=200.02..300.04 rows=3 width=8)          
+   ->  Bitmap Heap Scan on ao_with_bitmap  (cost=200.02..300.04 rows=1 width=8)          
+         Recheck Cond: (b = 1)                                                           
+         ->  Bitmap Index Scan on ao_with_bitmap_idx  (cost=0.00..200.01 rows=1 width=0) 
+               Index Cond: (b = 1)                                                       
+ Optimizer: Postgres query optimizer                                                     
+(6 rows)
+EXPLAIN SELECT * FROM ao_with_gist WHERE b @@ to_tsquery('footext3');
+ QUERY PLAN                                                                            
+---------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=100.14..200.15 rows=1 width=21)       
+   ->  Bitmap Heap Scan on ao_with_gist  (cost=100.14..200.15 rows=1 width=21)         
+         Recheck Cond: (b @@ '''footext3'''::tsquery)                                  
+         ->  Bitmap Index Scan on ao_with_gist_idx  (cost=0.00..100.14 rows=1 width=0) 
+               Index Cond: (b @@ '''footext3'''::tsquery)                              
+ Optimizer: Postgres query optimizer                                                   
+(6 rows)
+EXPLAIN SELECT * FROM aoco_with_btree WHERE b > 11;
+ QUERY PLAN                                                                               
+------------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=100.14..200.16 rows=1 width=8)           
+   ->  Bitmap Heap Scan on aoco_with_btree  (cost=100.14..200.16 rows=1 width=8)          
+         Recheck Cond: (b > 11)                                                           
+         ->  Bitmap Index Scan on aoco_with_btree_idx  (cost=0.00..100.14 rows=1 width=0) 
+               Index Cond: (b > 11)                                                       
+ Optimizer: Postgres query optimizer                                                      
+(6 rows)
+EXPLAIN SELECT * FROM aoco_with_bitmap WHERE b = 1;
+ QUERY PLAN                                                                                
+-------------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=200.02..300.04 rows=3 width=8)            
+   ->  Bitmap Heap Scan on aoco_with_bitmap  (cost=200.02..300.04 rows=1 width=8)          
+         Recheck Cond: (b = 1)                                                             
+         ->  Bitmap Index Scan on aoco_with_bitmap_idx  (cost=0.00..200.01 rows=1 width=0) 
+               Index Cond: (b = 1)                                                         
+ Optimizer: Postgres query optimizer                                                       
+(6 rows)
+EXPLAIN SELECT * FROM aoco_with_gist WHERE b @@ to_tsquery('footext3');
+ QUERY PLAN                                                                              
+-----------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=100.14..200.15 rows=1 width=21)         
+   ->  Bitmap Heap Scan on aoco_with_gist  (cost=100.14..200.15 rows=1 width=21)         
+         Recheck Cond: (b @@ '''footext3'''::tsquery)                                    
+         ->  Bitmap Index Scan on aoco_with_gist_idx  (cost=0.00..100.14 rows=1 width=0) 
+               Index Cond: (b @@ '''footext3'''::tsquery)                                
+ Optimizer: Postgres query optimizer                                                     
+(6 rows)
+SELECT * FROM heap_with_bpchar_pattern_ops WHERE b::bpchar LIKE '11';
+ a  | b  
+----+----
+ 11 | 11 
+(1 row)
+SELECT * FROM heap_with_bitmap WHERE b = 1;
+ a | b 
+---+---
+ 1 | 1 
+(1 row)
+SELECT * FROM ao_with_btree WHERE b > 11;
+ a  | b  
+----+----
+ 12 | 12 
+ 13 | 13 
+ 14 | 14 
+ 15 | 15 
+ 16 | 16 
+ 17 | 17 
+ 18 | 18 
+ 19 | 19 
+ 20 | 20 
+(9 rows)
+SELECT * FROM ao_with_bitmap WHERE b = 1;
+ a  | b 
+----+---
+ 6  | 1 
+ 4  | 1 
+ 7  | 1 
+ 1  | 1 
+ 1  | 1 
+ 10 | 1 
+(6 rows)
+SELECT * FROM ao_with_gist WHERE b @@ to_tsquery('footext3');
+ a | b          
+---+------------
+ 1 | 'footext3' 
+ 1 | 'footext3' 
+(2 rows)
+SELECT * FROM aoco_with_btree WHERE b > 11;
+ a  | b  
+----+----
+ 13 | 13 
+ 14 | 14 
+ 15 | 15 
+ 16 | 16 
+ 17 | 17 
+ 18 | 18 
+ 19 | 19 
+ 20 | 20 
+ 12 | 12 
+(9 rows)
+SELECT * FROM aoco_with_bitmap WHERE b = 1;
+ a  | b 
+----+---
+ 1  | 1 
+ 1  | 1 
+ 6  | 1 
+ 4  | 1 
+ 7  | 1 
+ 10 | 1 
+(6 rows)
+SELECT * FROM aoco_with_gist WHERE b @@ to_tsquery('footext3');
+ a | b          
+---+------------
+ 1 | 'footext3' 
+ 1 | 'footext3' 
+(2 rows)
+
+-- Verify that updates can be found via the index
+UPDATE heap_with_bpchar_pattern_ops SET b = '21' WHERE b = '11';
+UPDATE 1
+UPDATE heap_with_bitmap SET b = 4 WHERE b = 1;
+UPDATE 1
+UPDATE ao_with_btree SET b = 21 WHERE b = 11;
+UPDATE 1
+UPDATE ao_with_bitmap SET b = 4 WHERE b = 1;
+UPDATE 6
+UPDATE ao_with_gist SET b = 'footext5' WHERE b = 'footext3';
+UPDATE 2
+UPDATE aoco_with_btree SET b = 21 WHERE b = 11;
+UPDATE 1
+UPDATE aoco_with_bitmap SET b = 4 WHERE b = 1;
+UPDATE 6
+UPDATE aoco_with_gist SET b = 'footext5' WHERE b = 'footext3';
+UPDATE 2
+
+EXPLAIN SELECT * FROM heap_with_bpchar_pattern_ops WHERE b::bpchar LIKE '11';
+ QUERY PLAN                                                                                                                  
+-----------------------------------------------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=0.14..200.15 rows=1 width=6)                                                
+   ->  Index Scan using heap_with_bpchar_pattern_ops_idx on heap_with_bpchar_pattern_ops  (cost=0.14..200.15 rows=1 width=6) 
+         Index Cond: (b = '11'::bpchar)                                                                                      
+         Filter: (b ~~ '11'::text)                                                                                           
+ Optimizer: Postgres query optimizer                                                                                         
+(5 rows)
+EXPLAIN SELECT * FROM heap_with_bitmap WHERE b = 4;
+ QUERY PLAN                                                                                          
+-----------------------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=0.00..200.02 rows=1 width=8)                        
+   ->  Index Scan using heap_with_bitmap_idx on heap_with_bitmap  (cost=0.00..200.02 rows=1 width=8) 
+         Index Cond: (b = 4)                                                                         
+ Optimizer: Postgres query optimizer                                                                 
+(4 rows)
+EXPLAIN SELECT * FROM ao_with_btree WHERE b > 11;
+ QUERY PLAN                                                                             
+----------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=100.14..200.16 rows=1 width=8)         
+   ->  Bitmap Heap Scan on ao_with_btree  (cost=100.14..200.16 rows=1 width=8)          
+         Recheck Cond: (b > 11)                                                         
+         ->  Bitmap Index Scan on ao_with_btree_idx  (cost=0.00..100.14 rows=1 width=0) 
+               Index Cond: (b > 11)                                                     
+ Optimizer: Postgres query optimizer                                                    
+(6 rows)
+EXPLAIN SELECT * FROM ao_with_bitmap WHERE b = 4;
+ QUERY PLAN                                                                              
+-----------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=200.02..300.04 rows=3 width=8)          
+   ->  Bitmap Heap Scan on ao_with_bitmap  (cost=200.02..300.04 rows=1 width=8)          
+         Recheck Cond: (b = 4)                                                           
+         ->  Bitmap Index Scan on ao_with_bitmap_idx  (cost=0.00..200.01 rows=1 width=0) 
+               Index Cond: (b = 4)                                                       
+ Optimizer: Postgres query optimizer                                                     
+(6 rows)
+EXPLAIN SELECT * FROM ao_with_gist WHERE b @@ to_tsquery('footext5');
+ QUERY PLAN                                                                            
+---------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=100.14..200.15 rows=1 width=21)       
+   ->  Bitmap Heap Scan on ao_with_gist  (cost=100.14..200.15 rows=1 width=21)         
+         Recheck Cond: (b @@ '''footext5'''::tsquery)                                  
+         ->  Bitmap Index Scan on ao_with_gist_idx  (cost=0.00..100.14 rows=1 width=0) 
+               Index Cond: (b @@ '''footext5'''::tsquery)                              
+ Optimizer: Postgres query optimizer                                                   
+(6 rows)
+EXPLAIN SELECT * FROM aoco_with_btree WHERE b > 11;
+ QUERY PLAN                                                                               
+------------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=100.14..200.16 rows=1 width=8)           
+   ->  Bitmap Heap Scan on aoco_with_btree  (cost=100.14..200.16 rows=1 width=8)          
+         Recheck Cond: (b > 11)                                                           
+         ->  Bitmap Index Scan on aoco_with_btree_idx  (cost=0.00..100.14 rows=1 width=0) 
+               Index Cond: (b > 11)                                                       
+ Optimizer: Postgres query optimizer                                                      
+(6 rows)
+EXPLAIN SELECT * FROM aoco_with_bitmap WHERE b = 4;
+ QUERY PLAN                                                                                
+-------------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=200.02..300.04 rows=3 width=8)            
+   ->  Bitmap Heap Scan on aoco_with_bitmap  (cost=200.02..300.04 rows=1 width=8)          
+         Recheck Cond: (b = 4)                                                             
+         ->  Bitmap Index Scan on aoco_with_bitmap_idx  (cost=0.00..200.01 rows=1 width=0) 
+               Index Cond: (b = 4)                                                         
+ Optimizer: Postgres query optimizer                                                       
+(6 rows)
+EXPLAIN SELECT * FROM aoco_with_gist WHERE b @@ to_tsquery('footext5');
+ QUERY PLAN                                                                              
+-----------------------------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=100.14..200.15 rows=1 width=21)         
+   ->  Bitmap Heap Scan on aoco_with_gist  (cost=100.14..200.15 rows=1 width=21)         
+         Recheck Cond: (b @@ '''footext5'''::tsquery)                                    
+         ->  Bitmap Index Scan on aoco_with_gist_idx  (cost=0.00..100.14 rows=1 width=0) 
+               Index Cond: (b @@ '''footext5'''::tsquery)                                
+ Optimizer: Postgres query optimizer                                                     
+(6 rows)
+SELECT * FROM heap_with_bpchar_pattern_ops WHERE a::bpchar LIKE '11';
+ a  | b  
+----+----
+ 11 | 21 
+(1 row)
+SELECT * FROM heap_with_bitmap WHERE b = 4;
+ a | b 
+---+---
+ 1 | 4 
+ 4 | 4 
+(2 rows)
+SELECT * FROM ao_with_btree WHERE b > 11;
+ a  | b  
+----+----
+ 13 | 13 
+ 14 | 14 
+ 15 | 15 
+ 16 | 16 
+ 17 | 17 
+ 18 | 18 
+ 19 | 19 
+ 20 | 20 
+ 12 | 12 
+ 11 | 21 
+(10 rows)
+SELECT * FROM ao_with_bitmap WHERE b = 4;
+ a  | b 
+----+---
+ 1  | 4 
+ 1  | 4 
+ 4  | 4 
+ 6  | 4 
+ 4  | 4 
+ 7  | 4 
+ 9  | 4 
+ 10 | 4 
+(8 rows)
+SELECT * FROM ao_with_gist WHERE b @@ to_tsquery('footext5');
+ a | b          
+---+------------
+ 1 | 'footext5' 
+ 1 | 'footext5' 
+(2 rows)
+SELECT * FROM aoco_with_btree WHERE b > 11;
+ a  | b  
+----+----
+ 13 | 13 
+ 14 | 14 
+ 15 | 15 
+ 16 | 16 
+ 17 | 17 
+ 18 | 18 
+ 19 | 19 
+ 20 | 20 
+ 12 | 12 
+ 11 | 21 
+(10 rows)
+SELECT * FROM aoco_with_bitmap WHERE b = 4;
+ a  | b 
+----+---
+ 1  | 4 
+ 1  | 4 
+ 4  | 4 
+ 6  | 4 
+ 4  | 4 
+ 7  | 4 
+ 9  | 4 
+ 10 | 4 
+(8 rows)
+SELECT * FROM aoco_with_gist WHERE b @@ to_tsquery('footext5');
+ a | b          
+---+------------
+ 1 | 'footext5' 
+ 1 | 'footext5' 
+(2 rows)
+
+-- Check unused aoblkdir edge case is filtered out and not upgraded
+SELECT c.relname AS relname, CASE WHEN a.blkdirrelid = 0 THEN 'False' ELSE 'True' END AS has_aoblkdir FROM pg_appendonly a JOIN pg_class c on c.oid=a.relid WHERE c.relname='aotable_with_all_indexes_dropped';
+ relname                          | has_aoblkdir 
+----------------------------------+--------------
+ aotable_with_all_indexes_dropped | False        
+(1 row)

@@ -1,0 +1,1309 @@
+-- Copyright (c) 2017-2023 VMware, Inc. or its affiliates
+-- SPDX-License-Identifier: Apache-2.0
+
+--------------------------------------------------------------------------------
+-- Tests to ensure that various flavors of partitioned tables are functional post-upgrade
+--
+-- Tests are inspired by:
+-- gpdb/src/test/regress/sql/partition.sql
+-- gpdb/src/test/regress/sql/partition_indexing.sql
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+-- Helper functions
+--------------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS root_partition_indexes();
+DROP
+CREATE FUNCTION root_partition_indexes() RETURNS TABLE(table_name NAME, index_name REGCLASS,indisvalid boolean, column_num smallint, column_name NAME) LANGUAGE SQL STABLE STRICT AS $fn$ WITH indexes AS ( SELECT *, unnest(indkey) AS column_num FROM pg_index ) SELECT DISTINCT c.relname as table_name, indexrelid::regclass as index_name, indisvalid, column_num, a.attname FROM indexes pi JOIN pg_partition pp ON pi.indrelid = pp.parrelid JOIN pg_class c on c.oid=pi.indrelid JOIN pg_class pc ON pc.oid = pp.parrelid JOIN pg_attribute a on a.attrelid = pi.indrelid AND a.attnum = pi.column_num ORDER BY 1, 2, 4 $fn$;
+CREATE
+
+DROP FUNCTION IF EXISTS child_partition_indexes();
+DROP
+CREATE FUNCTION child_partition_indexes() RETURNS TABLE(table_name NAME, index_name REGCLASS, indisvalid boolean, has_child boolean, column_num smallint, column_name NAME) LANGUAGE SQL STABLE STRICT AS $fn$ WITH indexes AS ( SELECT *, unnest(indkey) AS column_num FROM pg_index ) SELECT DISTINCT c.relname as table_name, indexrelid::regclass as index_name, indisvalid, pc.relhassubclass as has_child, column_num, a.attname FROM indexes pi JOIN pg_partition_rule pp ON pi.indrelid=pp.parchildrelid JOIN pg_class c on c.oid=pi.indrelid JOIN pg_class pc ON pc.oid=pp.parchildrelid JOIN pg_attribute a on a.attrelid = pi.indrelid AND a.attnum = pi.column_num ORDER by 1, 2, 4, 5 $fn$;
+CREATE
+
+--------------------------------------------------------------------------------
+-- Use the indexes whenever possible
+--------------------------------------------------------------------------------
+SET enable_indexscan = true;
+SET
+SET enable_bitmapscan = true;
+SET
+SET enable_seqscan = false;
+SET
+SET optimizer = off;
+SET
+
+--------------------------------------------------------------------------------
+-- AO PARTITIONED TABLE WITH MULTIPLE SEGFILES AND DELETED TUPLES
+--------------------------------------------------------------------------------
+
+CREATE TABLE p_ao_table_with_multiple_segfiles (id int, name text) WITH (appendonly=true) DISTRIBUTED BY (id) PARTITION BY RANGE (id) SUBPARTITION BY LIST (name) SUBPARTITION TEMPLATE ( SUBPARTITION jane VALUES ('Jane'), SUBPARTITION john VALUES ('John'), DEFAULT SUBPARTITION other_names ) (START (1) END (2) EVERY (1), DEFAULT PARTITION other_ids);
+CREATE
+
+CREATE INDEX p_ao_table_with_multiple_segfiles_idx ON p_ao_table_with_multiple_segfiles(id);
+CREATE
+
+-- Use multiple sessions to create multiple segfiles
+1:BEGIN;
+BEGIN
+1:INSERT INTO p_ao_table_with_multiple_segfiles VALUES (1, 'Jane');
+INSERT 1
+1:INSERT INTO p_ao_table_with_multiple_segfiles VALUES (2, 'Jane');
+INSERT 1
+
+2:BEGIN;
+BEGIN
+2:INSERT INTO p_ao_table_with_multiple_segfiles VALUES (1, 'Jane');
+INSERT 1
+2:INSERT INTO p_ao_table_with_multiple_segfiles VALUES (2, 'Jane');
+INSERT 1
+2:INSERT INTO p_ao_table_with_multiple_segfiles VALUES (4, 'Andy');
+INSERT 1
+
+1:END;
+END
+2:END;
+END
+
+UPDATE p_ao_table_with_multiple_segfiles SET name='Carolyn' WHERE name='Andy';
+UPDATE 1
+INSERT INTO p_ao_table_with_multiple_segfiles VALUES (5, 'Bob');
+INSERT 1
+DELETE FROM p_ao_table_with_multiple_segfiles WHERE id=5;
+DELETE 1
+
+
+--------------------------------------------------------------------------------
+-- AOCO PARTITIONED TABLE WITH MULTIPLE SEGFILES AND DELETED TUPLES
+--------------------------------------------------------------------------------
+
+CREATE TABLE p_aoco_table_with_multiple_segfiles (id int, name text) WITH (appendonly=true, orientation=column) DISTRIBUTED BY (id) PARTITION BY RANGE (id) SUBPARTITION BY LIST (name) SUBPARTITION TEMPLATE ( SUBPARTITION jane VALUES ('Jane'), SUBPARTITION john VALUES ('John'), DEFAULT SUBPARTITION other_names ) (START (1) END (2) EVERY (1), DEFAULT PARTITION other_ids);
+CREATE
+
+CREATE INDEX p_aoco_table_with_multiple_segfiles_idx ON p_aoco_table_with_multiple_segfiles(id);
+CREATE
+
+-- Use multiple sessions to create multiple segfiles
+1:BEGIN;
+BEGIN
+1:INSERT INTO p_aoco_table_with_multiple_segfiles VALUES (1, 'Jane');
+INSERT 1
+1:INSERT INTO p_aoco_table_with_multiple_segfiles VALUES (2, 'Jane');
+INSERT 1
+
+2:BEGIN;
+BEGIN
+2:INSERT INTO p_aoco_table_with_multiple_segfiles VALUES (1, 'Jane');
+INSERT 1
+2:INSERT INTO p_aoco_table_with_multiple_segfiles VALUES (2, 'Jane');
+INSERT 1
+2:INSERT INTO p_aoco_table_with_multiple_segfiles VALUES (4, 'Andy');
+INSERT 1
+
+1:END;
+END
+2:END;
+END
+
+UPDATE p_aoco_table_with_multiple_segfiles SET name='Carolyn' WHERE name='Andy';
+UPDATE 1
+INSERT INTO p_aoco_table_with_multiple_segfiles VALUES (5, 'Bob');
+INSERT 1
+DELETE FROM p_aoco_table_with_multiple_segfiles WHERE id=5;
+DELETE 1
+
+--------------------------------------------------------------------------------
+-- POLYMORPHIC PARTITIONED TABLES
+-- Test to ensure that partitioned polymorphic tables can be
+-- upgraded. We create the tables with 2 heap, 1 AO, 1 AOCO, and 1
+-- external partitions. The root partition of each table will be
+-- either heap or AOCO.
+--------------------------------------------------------------------------------
+
+CREATE TABLE poly_range_partition_with_heap_root (a int, b int) PARTITION BY RANGE(b) ( PARTITION ext_part START(0) END(2), PARTITION ao_part START(2) END(4) WITH (appendonly=true), PARTITION aoco_part START(4) END(6) WITH (appendonly=true, orientation=column), PARTITION heap_part_1 START(6) END(8) WITH (appendonly=false), PARTITION heap_part_2 START(8) END(10) WITH (appendonly=false) );
+CREATE
+CREATE INDEX poly_range_partition_with_heap_root_idx ON poly_range_partition_with_heap_root(a);
+CREATE
+
+CREATE EXTERNAL TABLE external_table (a int, b int) LOCATION ('file://@hostname@/@abs_srcdir@/data/one_level_external_table_data.csv') FORMAT 'TEXT' (DELIMITER '|');
+CREATE
+ALTER TABLE poly_range_partition_with_heap_root EXCHANGE PARTITION ext_part WITH TABLE external_table WITHOUT VALIDATION;
+ALTER
+DROP TABLE external_table;
+DROP
+
+INSERT INTO poly_range_partition_with_heap_root SELECT i, i FROM generate_series(2, 9)i;
+INSERT 8
+
+SELECT * FROM poly_range_partition_with_heap_root ORDER BY 1;
+ a | b 
+---+---
+ 1 | 1 
+ 2 | 2 
+ 3 | 1 
+ 3 | 3 
+ 4 | 4 
+ 5 | 5 
+ 5 | 1 
+ 6 | 6 
+ 7 | 7 
+ 8 | 8 
+ 9 | 9 
+(11 rows)
+SELECT * FROM poly_range_partition_with_heap_root WHERE a < 5 ORDER BY 1;
+ a | b 
+---+---
+ 1 | 1 
+ 2 | 2 
+ 3 | 1 
+ 3 | 3 
+ 4 | 4 
+(5 rows)
+
+CREATE TABLE poly_range_partition_with_aoco_root (a int, b int) WITH (appendonly=true, orientation=column) PARTITION BY RANGE(b) ( PARTITION ext_part START(0) END(2), PARTITION ao_part START(2) END(4) WITH (appendonly=true), PARTITION aoco_part START(4) END(6) WITH (appendonly=true, orientation=column), PARTITION heap_part_1 START(6) END(8) WITH (appendonly=false), PARTITION heap_part_2 START(8) END(10) WITH (appendonly=false) );
+CREATE
+
+CREATE INDEX poly_range_partition_with_aoco_root_idx ON poly_range_partition_with_aoco_root(a);
+CREATE
+
+CREATE EXTERNAL TABLE external_table (a int, b int) LOCATION ('file://@hostname@/@abs_srcdir@/data/one_level_external_table_data.csv') FORMAT 'TEXT' (DELIMITER '|');
+CREATE
+ALTER TABLE poly_range_partition_with_aoco_root EXCHANGE PARTITION ext_part WITH TABLE external_table WITHOUT VALIDATION;
+ALTER
+DROP TABLE external_table;
+DROP
+
+INSERT INTO poly_range_partition_with_aoco_root SELECT i, i FROM generate_series(2, 9)i;
+INSERT 8
+
+SELECT * FROM poly_range_partition_with_aoco_root ORDER BY 1;
+ a | b 
+---+---
+ 1 | 1 
+ 2 | 2 
+ 3 | 1 
+ 3 | 3 
+ 4 | 4 
+ 5 | 5 
+ 5 | 1 
+ 6 | 6 
+ 7 | 7 
+ 8 | 8 
+ 9 | 9 
+(11 rows)
+SELECT * FROM poly_range_partition_with_aoco_root WHERE a < 5 ORDER BY 1;
+ a | b 
+---+---
+ 1 | 1 
+ 2 | 2 
+ 3 | 1 
+ 3 | 3 
+ 4 | 4 
+(5 rows)
+
+CREATE TABLE poly_list_partition_with_heap_root (a int, b int) PARTITION BY LIST(b) ( PARTITION ext_part VALUES (0, 1), PARTITION ao_part VALUES(2, 3) WITH (appendonly=true), PARTITION aoco_part VALUES(4, 5) WITH (appendonly=true, orientation=column), PARTITION heap_part_1 VALUES(6, 7) WITH (appendonly=false), PARTITION heap_part_2 VALUES(8, 9) WITH (appendonly=false) );
+CREATE
+
+CREATE INDEX poly_list_partition_with_heap_root_idx ON poly_list_partition_with_heap_root(a);
+CREATE
+
+CREATE EXTERNAL TABLE external_table (a int, b int) LOCATION ('file://@hostname@/@abs_srcdir@/data/one_level_external_table_data.csv') FORMAT 'TEXT' (DELIMITER '|');
+CREATE
+ALTER TABLE poly_list_partition_with_heap_root EXCHANGE PARTITION ext_part WITH TABLE external_table WITHOUT VALIDATION;
+ALTER
+DROP TABLE external_table;
+DROP
+
+INSERT INTO poly_list_partition_with_heap_root SELECT i, i FROM generate_series(2, 9)i;
+INSERT 8
+
+SELECT * FROM poly_list_partition_with_heap_root ORDER BY 1;
+ a | b 
+---+---
+ 1 | 1 
+ 2 | 2 
+ 3 | 1 
+ 3 | 3 
+ 4 | 4 
+ 5 | 5 
+ 5 | 1 
+ 6 | 6 
+ 7 | 7 
+ 8 | 8 
+ 9 | 9 
+(11 rows)
+SELECT * FROM poly_list_partition_with_heap_root WHERE a < 5 ORDER BY 1;
+ a | b 
+---+---
+ 1 | 1 
+ 2 | 2 
+ 3 | 1 
+ 3 | 3 
+ 4 | 4 
+(5 rows)
+
+CREATE TABLE poly_list_partition_with_aoco_root (a int, b int) WITH (appendonly=true, orientation=column) PARTITION BY LIST(b) ( PARTITION ext_part VALUES (0, 1), PARTITION ao_part VALUES(2, 3) WITH (appendonly=true), PARTITION aoco_part VALUES(4, 5) WITH (appendonly=true, orientation=column), PARTITION heap_part_1 VALUES(6, 7) WITH (appendonly=false), PARTITION heap_part_2 VALUES(8, 9) WITH (appendonly=false) );
+CREATE
+
+CREATE INDEX poly_list_partition_with_aoco_root_idx ON poly_list_partition_with_aoco_root(a);
+CREATE
+
+CREATE EXTERNAL TABLE external_table (a int, b int) LOCATION ('file://@hostname@/@abs_srcdir@/data/one_level_external_table_data.csv') FORMAT 'TEXT' (DELIMITER '|');
+CREATE
+ALTER TABLE poly_list_partition_with_aoco_root EXCHANGE PARTITION ext_part WITH TABLE external_table WITHOUT VALIDATION;
+ALTER
+DROP TABLE external_table;
+DROP
+
+INSERT INTO poly_list_partition_with_aoco_root SELECT i, i FROM generate_series(2, 9)i;
+INSERT 8
+
+SELECT * FROM poly_list_partition_with_aoco_root ORDER BY 1;
+ a | b 
+---+---
+ 1 | 1 
+ 2 | 2 
+ 3 | 1 
+ 3 | 3 
+ 4 | 4 
+ 5 | 5 
+ 5 | 1 
+ 6 | 6 
+ 7 | 7 
+ 8 | 8 
+ 9 | 9 
+(11 rows)
+SELECT * FROM poly_list_partition_with_aoco_root WHERE a < 5 ORDER BY 1;
+ a | b 
+---+---
+ 1 | 1 
+ 2 | 2 
+ 3 | 1 
+ 3 | 3 
+ 4 | 4 
+(5 rows)
+
+-- Show what the storage types of each partition are before upgrade
+SELECT relname, relstorage FROM pg_class WHERE relname SIMILAR TO 'poly_(list|range)_partition_with_(heap|aoco)_root%' AND relkind IN ('r') ORDER BY relname;
+ relname                                               | relstorage 
+-------------------------------------------------------+------------
+ poly_list_partition_with_aoco_root                    | c          
+ poly_list_partition_with_aoco_root_1_prt_ao_part      | a          
+ poly_list_partition_with_aoco_root_1_prt_aoco_part    | c          
+ poly_list_partition_with_aoco_root_1_prt_ext_part     | x          
+ poly_list_partition_with_aoco_root_1_prt_heap_part_1  | h          
+ poly_list_partition_with_aoco_root_1_prt_heap_part_2  | h          
+ poly_list_partition_with_heap_root                    | h          
+ poly_list_partition_with_heap_root_1_prt_ao_part      | a          
+ poly_list_partition_with_heap_root_1_prt_aoco_part    | c          
+ poly_list_partition_with_heap_root_1_prt_ext_part     | x          
+ poly_list_partition_with_heap_root_1_prt_heap_part_1  | h          
+ poly_list_partition_with_heap_root_1_prt_heap_part_2  | h          
+ poly_range_partition_with_aoco_root                   | c          
+ poly_range_partition_with_aoco_root_1_prt_ao_part     | a          
+ poly_range_partition_with_aoco_root_1_prt_aoco_part   | c          
+ poly_range_partition_with_aoco_root_1_prt_ext_part    | x          
+ poly_range_partition_with_aoco_root_1_prt_heap_part_1 | h          
+ poly_range_partition_with_aoco_root_1_prt_heap_part_2 | h          
+ poly_range_partition_with_heap_root                   | h          
+ poly_range_partition_with_heap_root_1_prt_ao_part     | a          
+ poly_range_partition_with_heap_root_1_prt_aoco_part   | c          
+ poly_range_partition_with_heap_root_1_prt_ext_part    | x          
+ poly_range_partition_with_heap_root_1_prt_heap_part_1 | h          
+ poly_range_partition_with_heap_root_1_prt_heap_part_2 | h          
+(24 rows)
+
+--------------------------------------------------------------------------------
+-- MISMATCHED AO PARTITIONED TABLE INDEXES
+-- Test upgrade of an AO partition hierarchy having an index defined on the parent, that is
+-- not defined on all of the members of the hierarchy.
+--------------------------------------------------------------------------------
+
+CREATE TABLE mismatched_aopartition_indexes (a integer, b text, c integer) WITH (appendonly=true) DISTRIBUTED BY (a) PARTITION BY RANGE(c) (START(1) END(3) EVERY(1));
+CREATE
+CREATE INDEX mismatch_idx on mismatched_aopartition_indexes(b);
+CREATE
+
+CREATE TABLE mismatch_exch (a integer, b text, c integer) WITH (appendonly=true) DISTRIBUTED BY (a);
+CREATE
+ALTER TABLE mismatched_aopartition_indexes exchange partition for (rank(1)) with table mismatch_exch;
+ALTER
+
+INSERT INTO mismatched_aopartition_indexes VALUES(1, 'apple', 1), (2, 'boss', 2);
+INSERT 2
+
+SELECT * FROM mismatched_aopartition_indexes WHERE b = 'apple' ORDER BY 1;
+ a | b     | c 
+---+-------+---
+ 1 | apple | 1 
+(1 row)
+
+--------------------------------------------------------------------------------
+-- PARTITIONED TABLES USING KEYWORDS
+-- Ensure that partition names having keywords (reserved, non-reserved and
+-- unclassified) can be upgraded by quoting them using the quote_all_identifiers
+-- GUC.
+--------------------------------------------------------------------------------
+
+--
+-- Create a partitioned table using reserved (ie: "window"), non-reserved
+-- (ie: "current"), and unclassified (ie: "allocate") keywords for partition names.
+-- For a comprehensive list of keywords:
+-- https://www.postgresql.org/docs/8.3/sql-keywords-appendix.html
+CREATE TABLE t_quote_test (a int, b int, c int, d int, e text) DISTRIBUTED BY (a) PARTITION BY RANGE (b) SUBPARTITION BY RANGE (c) SUBPARTITION TEMPLATE ( START (1) END (2) EVERY (1), DEFAULT SUBPARTITION "current" ) SUBPARTITION BY LIST (e) SUBPARTITION TEMPLATE ( SUBPARTITION "allocate" VALUES ('val1'), SUBPARTITION "window" VALUES ('val2'), DEFAULT SUBPARTITION dsp ) ( START (2002) END (2003) EVERY (1), DEFAULT PARTITION dp );
+CREATE
+
+-- Create indexes with reserved keywords
+CREATE INDEX "both" ON t_quote_test(a);
+CREATE
+CREATE INDEX "column" ON t_quote_test(e);
+CREATE
+
+INSERT INTO t_quote_test SELECT i, i, i, i, 'val' || i FROM generate_series(1, 10) i;
+INSERT 10
+
+SELECT * FROM t_quote_test WHERE a < 5 ORDER BY 1;
+ a | b | c | d | e    
+---+---+---+---+------
+ 1 | 1 | 1 | 1 | val1 
+ 2 | 2 | 2 | 2 | val2 
+ 3 | 3 | 3 | 3 | val3 
+ 4 | 4 | 4 | 4 | val4 
+(4 rows)
+SELECT * FROM t_quote_test WHERE e = 'val10' ORDER BY 1;
+ a  | b  | c  | d  | e     
+----+----+----+----+-------
+ 10 | 10 | 10 | 10 | val10 
+(1 row)
+
+--------------------------------------------------------------------------------
+-- PARTITION CHILDREN IN DIFFERENT SCHEMAS
+--------------------------------------------------------------------------------
+
+CREATE SCHEMA schema1;
+CREATE
+CREATE SCHEMA schema2;
+CREATE
+CREATE TABLE public.different_schema_ptable(a int, b int) PARTITION BY RANGE(a) (START(1) END (4) EVERY(1));
+CREATE
+
+ALTER TABLE public.different_schema_ptable_1_prt_1 SET SCHEMA schema1;
+ALTER
+ALTER TABLE public.different_schema_ptable_1_prt_2 SET SCHEMA schema2;
+ALTER
+
+CREATE INDEX different_schema_ptable_idx ON public.different_schema_ptable(b);
+CREATE
+
+INSERT INTO public.different_schema_ptable SELECT i, i + 1 FROM generate_series(1, 3) i;
+INSERT 3
+
+-- check data
+SELECT * FROM public.different_schema_ptable ORDER BY 1, 2;
+ a | b 
+---+---
+ 1 | 2 
+ 2 | 3 
+ 3 | 4 
+(3 rows)
+SELECT * FROM schema1.different_schema_ptable_1_prt_1 ORDER BY 1, 2;
+ a | b 
+---+---
+ 1 | 2 
+(1 row)
+SELECT * FROM schema2.different_schema_ptable_1_prt_2 ORDER BY 1, 2;
+ a | b 
+---+---
+ 2 | 3 
+(1 row)
+SELECT * FROM public.different_schema_ptable_1_prt_3 ORDER BY 1, 2;
+ a | b 
+---+---
+ 3 | 4 
+(1 row)
+
+-- check partition schemas
+SELECT nsp.nspname, c.relname FROM pg_class c JOIN pg_namespace nsp ON nsp.oid = c.relnamespace WHERE relname LIKE 'different_schema_ptable%' ORDER BY relname;
+ nspname | relname                             
+---------+-------------------------------------
+ public  | different_schema_ptable             
+ schema1 | different_schema_ptable_1_prt_1     
+ schema2 | different_schema_ptable_1_prt_2     
+ public  | different_schema_ptable_1_prt_3     
+ public  | different_schema_ptable_idx         
+ schema1 | different_schema_ptable_idx_1_prt_1 
+ schema2 | different_schema_ptable_idx_1_prt_2 
+ public  | different_schema_ptable_idx_1_prt_3 
+(8 rows)
+
+--------------------------------------------------------------------------------
+-- MULTILEVEL PARTITION CHILDREN IN DIFFERENT SCHEMAS
+--------------------------------------------------------------------------------
+
+CREATE TABLE multilevel_different_schema_ptable (id int, year date, gender char(1)) DISTRIBUTED BY (id, gender, year) partition BY list (gender) subpartition BY range (year) subpartition template ( START (date '2001-01-01'), START (date '2002-01-01'), START (date '2003-01-01') ) ( partition boys VALUES ('M'), partition girls VALUES ('F') );
+CREATE
+
+CREATE INDEX multilevel_different_schema_ptable_idx ON multilevel_different_schema_ptable(id);
+CREATE
+
+ALTER TABLE public.multilevel_different_schema_ptable_1_prt_boys SET SCHEMA schema1;
+ALTER
+ALTER TABLE public.multilevel_different_schema_ptable_1_prt_girls_2_prt_1 SET SCHEMA schema1;
+ALTER
+ALTER TABLE public.multilevel_different_schema_ptable_1_prt_girls_2_prt_2 SET SCHEMA schema2;
+ALTER
+
+INSERT INTO public.multilevel_different_schema_ptable VALUES (1, date '2001-01-15', 'M');
+INSERT 1
+INSERT INTO public.multilevel_different_schema_ptable VALUES (2, date '2002-02-15', 'M');
+INSERT 1
+INSERT INTO public.multilevel_different_schema_ptable VALUES (3, date '2003-03-15', 'M');
+INSERT 1
+INSERT INTO public.multilevel_different_schema_ptable VALUES (4, date '2001-01-15', 'F');
+INSERT 1
+INSERT INTO public.multilevel_different_schema_ptable VALUES (5, date '2002-02-15', 'F');
+INSERT 1
+INSERT INTO public.multilevel_different_schema_ptable VALUES (6, date '2003-03-15', 'F');
+INSERT 1
+
+-- check data
+SELECT * FROM public.multilevel_different_schema_ptable ORDER BY 1, 2, 3;
+ id | year       | gender 
+----+------------+--------
+ 1  | 01-15-2001 | M      
+ 2  | 02-15-2002 | M      
+ 3  | 03-15-2003 | M      
+ 4  | 01-15-2001 | F      
+ 5  | 02-15-2002 | F      
+ 6  | 03-15-2003 | F      
+(6 rows)
+SELECT * FROM schema1.multilevel_different_schema_ptable_1_prt_boys ORDER BY 1, 2, 3;
+ id | year       | gender 
+----+------------+--------
+ 1  | 01-15-2001 | M      
+ 2  | 02-15-2002 | M      
+ 3  | 03-15-2003 | M      
+(3 rows)
+SELECT * FROM public.multilevel_different_schema_ptable_1_prt_boys_2_prt_1 ORDER BY 1, 2, 3;
+ id | year       | gender 
+----+------------+--------
+ 1  | 01-15-2001 | M      
+(1 row)
+SELECT * FROM public.multilevel_different_schema_ptable_1_prt_boys_2_prt_2 ORDER BY 1, 2, 3;
+ id | year       | gender 
+----+------------+--------
+ 2  | 02-15-2002 | M      
+(1 row)
+SELECT * FROM public.multilevel_different_schema_ptable_1_prt_boys_2_prt_3 ORDER BY 1, 2, 3;
+ id | year       | gender 
+----+------------+--------
+ 3  | 03-15-2003 | M      
+(1 row)
+SELECT * FROM public.multilevel_different_schema_ptable_1_prt_girls ORDER BY 1, 2, 3;
+ id | year       | gender 
+----+------------+--------
+ 4  | 01-15-2001 | F      
+ 5  | 02-15-2002 | F      
+ 6  | 03-15-2003 | F      
+(3 rows)
+SELECT * FROM schema1.multilevel_different_schema_ptable_1_prt_girls_2_prt_1 ORDER BY 1, 2, 3;
+ id | year       | gender 
+----+------------+--------
+ 4  | 01-15-2001 | F      
+(1 row)
+SELECT * FROM schema2.multilevel_different_schema_ptable_1_prt_girls_2_prt_2 ORDER BY 1, 2, 3;
+ id | year       | gender 
+----+------------+--------
+ 5  | 02-15-2002 | F      
+(1 row)
+SELECT * FROM public.multilevel_different_schema_ptable_1_prt_girls_2_prt_3 ORDER BY 1, 2, 3;
+ id | year       | gender 
+----+------------+--------
+ 6  | 03-15-2003 | F      
+(1 row)
+
+-- check partition schemas
+SELECT nsp.nspname, c.relname FROM pg_class c JOIN pg_namespace nsp ON nsp.oid = c.relnamespace WHERE relname LIKE 'multilevel_different_schema_ptable%' ORDER BY relname;
+ nspname | relname                                                    
+---------+------------------------------------------------------------
+ public  | multilevel_different_schema_ptable                         
+ schema1 | multilevel_different_schema_ptable_1_prt_boys              
+ public  | multilevel_different_schema_ptable_1_prt_boys_2_prt_1      
+ public  | multilevel_different_schema_ptable_1_prt_boys_2_prt_2      
+ public  | multilevel_different_schema_ptable_1_prt_boys_2_prt_3      
+ public  | multilevel_different_schema_ptable_1_prt_girls             
+ schema1 | multilevel_different_schema_ptable_1_prt_girls_2_prt_1     
+ schema2 | multilevel_different_schema_ptable_1_prt_girls_2_prt_2     
+ public  | multilevel_different_schema_ptable_1_prt_girls_2_prt_3     
+ public  | multilevel_different_schema_ptable_idx                     
+ schema1 | multilevel_different_schema_ptable_idx_1_prt_boys          
+ public  | multilevel_different_schema_ptable_idx_1_prt_boys_2_prt_1  
+ public  | multilevel_different_schema_ptable_idx_1_prt_boys_2_prt_2  
+ public  | multilevel_different_schema_ptable_idx_1_prt_boys_2_prt_3  
+ public  | multilevel_different_schema_ptable_idx_1_prt_girls         
+ schema1 | multilevel_different_schema_ptable_idx_1_prt_girls_2_prt_1 
+ schema2 | multilevel_different_schema_ptable_idx_1_prt_girls_2_prt_2 
+ public  | multilevel_different_schema_ptable_idx_1_prt_girls_2_prt_3 
+(18 rows)
+
+--------------------------------------------------------------------------------
+-- DROPPED COLUMN
+--------------------------------------------------------------------------------
+
+CREATE TABLE pt_dropped_column (a int, b int, c int, d int) DISTRIBUTED BY (c) PARTITION BY RANGE (a) (PARTITION part_1 START(1) END(5), PARTITION part_2 START(5));
+CREATE
+INSERT INTO pt_dropped_column SELECT i, i, i, i FROM generate_series(1, 10) i;
+INSERT 10
+ALTER TABLE pt_dropped_column DROP COLUMN d;
+ALTER
+INSERT INTO pt_dropped_column SELECT i, i, i FROM generate_series(10, 20) i;
+INSERT 11
+
+--------------------------------------------------------------------------------
+-- ROOT PARTITION HAS DROPPED COLUMN
+--------------------------------------------------------------------------------
+
+CREATE TABLE pt_root_has_dropped_column (a int, b int, c int, d int) PARTITION BY RANGE (a) (PARTITION part_1 START(1) END(5), PARTITION part_2 START(5));
+CREATE
+INSERT INTO pt_root_has_dropped_column SELECT i, i, i, i FROM generate_series(1, 10) i;
+INSERT 10
+ALTER TABLE pt_root_has_dropped_column DROP COLUMN d;
+ALTER
+
+CREATE TABLE intermediate_table_1 (a int, b int, c int);
+CREATE
+ALTER TABLE pt_root_has_dropped_column EXCHANGE PARTITION part_1 WITH TABLE intermediate_table_1;
+ALTER
+DROP TABLE intermediate_table_1;
+DROP
+
+CREATE TABLE intermediate_table_2 (a int, b int, c int);
+CREATE
+ALTER TABLE pt_root_has_dropped_column EXCHANGE PARTITION part_2 WITH TABLE intermediate_table_2;
+ALTER
+DROP TABLE intermediate_table_2;
+DROP
+
+INSERT INTO pt_root_has_dropped_column SELECT i, i, i FROM generate_series(10, 20) i;
+INSERT 11
+
+--------------------------------------------------------------------------------
+-- DROPPED AND NEWLY ADDED COLUMN
+--------------------------------------------------------------------------------
+CREATE TABLE pt_dropped_and_added_column (a int, b int, c int, d numeric) DISTRIBUTED BY (a) PARTITION BY RANGE(c) SUBPARTITION BY range(d) (PARTITION part_1 START(0) END(42) (SUBPARTITION subpart_1 START(0) END(42)));
+CREATE
+
+INSERT INTO pt_dropped_and_added_column SELECT i, i, i, i FROM generate_series(1, 10) i;
+INSERT 10
+ALTER TABLE pt_dropped_and_added_column DROP COLUMN b;
+ALTER
+ALTER TABLE pt_dropped_and_added_column ADD COLUMN e int;
+ALTER
+INSERT INTO pt_dropped_and_added_column SELECT i, i, i, i FROM generate_series(10, 20) i;
+INSERT 11
+
+--------------------------------------------------------------------------------
+-- ALTER OWNER
+--------------------------------------------------------------------------------
+
+CREATE TABLE pt_alter_owner (id INTEGER, name TEXT) DISTRIBUTED BY (id) PARTITION BY RANGE(id) (START(1) END(3) EVERY(1));
+CREATE
+ALTER TABLE pt_alter_owner OWNER TO upgradable_objects_role;
+ALTER
+
+--------------------------------------------------------------------------------
+-- LIST PARTITIONED BY CUSTOM TYPE
+-- This tests the scenario where a list partitioned table is partitioned by a custom type
+-- where the equality operator is in a different schema.
+-- Note: On 5X, inserts into the table won't work due to a bug where it assumes
+--       the equality operator is in pg_catalog. This is fixed in 6X so we'll at
+--       least test the table creation here.
+--------------------------------------------------------------------------------
+CREATE TYPE equal_operator_not_in_search_path_type AS (a int, b int);
+CREATE
+CREATE FUNCTION equal_operator_not_in_search_path_func (equal_operator_not_in_search_path_type, equal_operator_not_in_search_path_type) RETURNS boolean AS 'SELECT $1.a = $2.a;' LANGUAGE SQL IMMUTABLE RETURNS NULL ON NULL INPUT;
+CREATE
+
+CREATE SCHEMA equal_operator_not_in_search_path_schema;
+CREATE
+CREATE OPERATOR equal_operator_not_in_search_path_schema.= ( LEFTARG = equal_operator_not_in_search_path_type, RIGHTARG = equal_operator_not_in_search_path_type, PROCEDURE = equal_operator_not_in_search_path_func );
+CREATE
+
+CREATE OPERATOR CLASS equal_operator_not_in_search_path_opclass DEFAULT FOR TYPE equal_operator_not_in_search_path_type USING btree AS OPERATOR 3 equal_operator_not_in_search_path_schema.=;
+CREATE
+
+SET search_path TO equal_operator_not_in_search_path_schema,"$user",public;
+SET
+CREATE TABLE public.equal_operator_not_in_search_path_table (a int, b equal_operator_not_in_search_path_type) DISTRIBUTED BY (a) PARTITION BY LIST(b) ( PARTITION part1 VALUES('(1,1)') );
+CREATE
+
+CREATE TABLE public.equal_operator_not_in_search_path_table_multi_key (a int, b equal_operator_not_in_search_path_type, c int) DISTRIBUTED BY (a) PARTITION BY LIST(b, c) ( PARTITION part1 VALUES(('(1,1)', 1)) );
+CREATE
+
+RESET search_path;
+RESET
+
+--------------------------------------------------------------------------------
+-- PARTITION INDEX INHERITANCE TESTS
+--------------------------------------------------------------------------------
+
+CREATE TABLE pt_inh_t1 (a INTEGER NOT NULL, b CHAR(25)) DISTRIBUTED BY (a) PARTITION BY range (a) (PARTITION part1 START (0));
+CREATE
+
+CREATE INDEX pt_inh_t1_idx ON pt_inh_t1(a);
+CREATE
+
+SELECT * FROM root_partition_indexes() WHERE table_name LIKE 'pt_inh_t1%';
+ table_name | index_name    | indisvalid | column_num | column_name 
+------------+---------------+------------+------------+-------------
+ pt_inh_t1  | pt_inh_t1_idx | t          | 1          | a           
+(1 row)
+SELECT * FROM child_partition_indexes() WHERE table_name LIKE 'pt_inh_t1%';
+ table_name            | index_name                | indisvalid | has_child | column_num | column_name 
+-----------------------+---------------------------+------------+-----------+------------+-------------
+ pt_inh_t1_1_prt_part1 | pt_inh_t1_idx_1_prt_part1 | t          | f         | 1          | a           
+(1 row)
+
+CREATE TABLE pt_inh_t2 (a INTEGER NOT NULL, b CHAR(25)) DISTRIBUTED BY (a) PARTITION BY range (a) SUBPARTITION BY list (b) SUBPARTITION TEMPLATE (SUBPARTITION a VALUES ('A')) (PARTITION part1 START (0));
+CREATE
+
+CREATE INDEX pt_inh_t2_idx ON pt_inh_t2(a);
+CREATE
+
+SELECT * FROM root_partition_indexes() WHERE table_name LIKE 'pt_inh_t2%';
+ table_name | index_name    | indisvalid | column_num | column_name 
+------------+---------------+------------+------------+-------------
+ pt_inh_t2  | pt_inh_t2_idx | t          | 1          | a           
+(1 row)
+SELECT * FROM child_partition_indexes() WHERE table_name LIKE 'pt_inh_t2%';
+ table_name                    | index_name                        | indisvalid | has_child | column_num | column_name 
+-------------------------------+-----------------------------------+------------+-----------+------------+-------------
+ pt_inh_t2_1_prt_part1         | pt_inh_t2_idx_1_prt_part1         | t          | t         | 1          | a           
+ pt_inh_t2_1_prt_part1_2_prt_a | pt_inh_t2_idx_1_prt_part1_2_prt_a | t          | f         | 1          | a           
+(2 rows)
+
+--------------------------------------------------------------------------------
+-- HEAP PARTITIONED TABLE INDEXES
+--------------------------------------------------------------------------------
+
+CREATE TABLE pt_heap ( unique1         int4, unique2         int4, two             int4, four            int4, ten             int4, twenty          int4, hundred         int4, thousand        int4, twothousand     int4, fivethous       int4, tenthous        int4, even            int4, odd             int4, stringu1        name, stringu2        name, string4         name ) distributed by (unique1) partition by range (unique1) subpartition by range (unique2) subpartition template ( subpartition subpart1 start (0) end (20) inclusive every (10)) ( partition part1 start (0) end (10));
+CREATE
+
+CREATE UNIQUE INDEX pt_heap_unique1_uniqueidx ON pt_heap(unique1);
+CREATE
+CREATE INDEX pt_heap_unique2_idx ON pt_heap(unique2);
+CREATE
+CREATE INDEX pt_heap_unique1_unique2_idx ON pt_heap(unique1, unique2);
+CREATE
+CREATE INDEX pt_heap_two_four_idx ON pt_heap(two, four);
+CREATE
+CREATE INDEX pt_heap_string4_bitmap_idx ON pt_heap using bitmap(string4);
+CREATE
+CREATE INDEX pt_heap_ten_twenty_bitmap_idx ON pt_heap using bitmap(ten, twenty);
+CREATE
+
+-- Dropped root partition index
+CREATE INDEX pt_heap_dropped_root_idx ON pt_heap(hundred);
+CREATE
+DROP INDEX pt_heap_dropped_root_idx;
+DROP
+
+-- Dropped child partition index
+CREATE INDEX pt_heap_dropped_child_subpart1_idx ON pt_heap(thousand);
+CREATE
+DROP INDEX pt_heap_dropped_child_subpart1_idx_1_prt_part1_2_prt_subpart1_1;
+DROP
+
+-- Create index on mid-level partition. This won't be used unless
+-- querying the mid-level partition directly.
+CREATE INDEX pt_heap_mid_idx ON pt_heap_1_prt_part1(twothousand);
+CREATE
+
+-- Create index on leaf partition
+CREATE INDEX pt_heap_leaf_idx ON pt_heap_1_prt_part1_2_prt_subpart1_2(fivethous);
+CREATE
+
+-- Add partition
+ALTER TABLE pt_heap ADD PARTITION added_part START (11) END (15) inclusive;
+ALTER
+
+-- Add default partition
+ALTER TABLE pt_heap ADD DEFAULT PARTITION default_part;
+ALTER
+
+-- Exchange partition with index
+CREATE TABLE pt_heap_exchange1 (LIKE pt_heap);
+CREATE
+CREATE INDEX pt_heap_exchange1_idx ON pt_heap_exchange1(stringu1);
+CREATE
+ALTER TABLE pt_heap ALTER PARTITION part1 EXCHANGE PARTITION FOR (0) WITH TABLE pt_heap_exchange1;
+ALTER
+DROP TABLE pt_heap_exchange1;
+DROP
+
+-- Exchange partition without index
+CREATE TABLE pt_heap_exchange2 (LIKE pt_heap);
+CREATE
+ALTER TABLE pt_heap ALTER PARTITION FOR (RANK(2)) EXCHANGE PARTITION FOR (5) WITH TABLE pt_heap_exchange2;
+ALTER
+DROP TABLE pt_heap_exchange2;
+DROP
+
+-- Insert data
+COPY pt_heap FROM '@abs_srcdir@/data/indexes.data';
+COPY 25
+
+-- Create index on column, then drop column
+CREATE INDEX pt_heap_index_on_dropped_column ON pt_heap(tenthous);
+CREATE
+ALTER TABLE pt_heap DROP COLUMN tenthous;
+ALTER
+
+-- Check the indexes
+
+-- pt_heap_unique1_uniqueidx
+SELECT * FROM pt_heap WHERE unique1 < 10 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 0       | 0       | 0   | 2    | 6   | 6      | 6       | 46       | 46          | 346       | 12   | 13  | OGAAAA   | YAAAAA   | AAAAxx  
+ 1       | 1       | 1   | 1    | 9   | 9      | 9       | 89       | 189         | 389       | 18   | 19  | ZOAAAA   | XAAAAA   | VVVVxx  
+ 2       | 2       | 0   | 2    | 6   | 6      | 6       | 66       | 166         | 466       | 12   | 13  | ELAAAA   | WAAAAA   | OOOOxx  
+ 3       | 3       | 1   | 1    | 7   | 17     | 7       | 97       | 197         | 497       | 14   | 15  | JMAAAA   | VAAAAA   | HHHHxx  
+ 4       | 20      | 1   | 1    | 5   | 5      | 5       | 85       | 85          | 385       | 10   | 11  | BIAAAA   | UAAAAA   | AAAAxx  
+ 5       | 19      | 1   | 3    | 3   | 3      | 3       | 83       | 183         | 183       | 6    | 7   | BHAAAA   | TAAAAA   | VVVVxx  
+ 6       | 18      | 0   | 0    | 4   | 4      | 4       | 64       | 64          | 364       | 8    | 9   | GHAAAA   | SAAAAA   | OOOOxx  
+ 7       | 17      | 0   | 2    | 2   | 2      | 2       | 82       | 82          | 182       | 4    | 5   | GAAAAA   | RAAAAA   | HHHHxx  
+ 8       | 16      | 0   | 2    | 8   | 18     | 8       | 98       | 98          | 298       | 16   | 17  | MLAAAA   | QAAAAA   | AAAAxx  
+ 9       | 15      | 0   | 2    | 4   | 14     | 4       | 74       | 174         | 274       | 8    | 9   | UDAAAA   | PAAAAA   | VVVVxx  
+(10 rows)
+
+-- pt_heap_unique2_idx
+SELECT * FROM pt_heap WHERE unique2 < 10 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 0       | 0       | 0   | 2    | 6   | 6      | 6       | 46       | 46          | 346       | 12   | 13  | OGAAAA   | YAAAAA   | AAAAxx  
+ 1       | 1       | 1   | 1    | 9   | 9      | 9       | 89       | 189         | 389       | 18   | 19  | ZOAAAA   | XAAAAA   | VVVVxx  
+ 2       | 2       | 0   | 2    | 6   | 6      | 6       | 66       | 166         | 466       | 12   | 13  | ELAAAA   | WAAAAA   | OOOOxx  
+ 3       | 3       | 1   | 1    | 7   | 17     | 7       | 97       | 197         | 497       | 14   | 15  | JMAAAA   | VAAAAA   | HHHHxx  
+ 15      | 9       | 0   | 0    | 0   | 0      | 0       | 0        | 0           | 300       | 0    | 1   | UEAAAA   | JAAAAA   | HHHHxx  
+ 16      | 8       | 1   | 1    | 5   | 5      | 5       | 25       | 25          | 425       | 10   | 11  | JQAAAA   | IAAAAA   | AAAAxx  
+ 17      | 7       | 1   | 3    | 3   | 3      | 3       | 43       | 143         | 43        | 6    | 7   | XUAAAA   | HAAAAA   | VVVVxx  
+ 18      | 6       | 0   | 2    | 0   | 10     | 0       | 70       | 70          | 170       | 0    | 1   | UZAAAA   | GAAAAA   | OOOOxx  
+ 19      | 5       | 1   | 3    | 9   | 19     | 9       | 39       | 39          | 439       | 18   | 19  | XQAAAA   | FAAAAA   | HHHHxx  
+ 20      | 4       | 1   | 3    | 3   | 3      | 3       | 83       | 83          | 383       | 6    | 7   | ZHAAAA   | EAAAAA   | AAAAxx  
+ 21      | 3       | 1   | 3    | 1   | 11     | 1       | 11       | 111         | 211       | 2    | 3   | JBAAAA   | DAAAAA   | VVVVxx  
+ 22      | 2       | 0   | 2    | 4   | 14     | 4       | 14       | 114         | 214       | 8    | 9   | MBAAAA   | CAAAAA   | OOOOxx  
+ 23      | 1       | 1   | 3    | 1   | 11     | 1       | 31       | 131         | 431       | 2    | 3   | VJAAAA   | BAAAAA   | HHHHxx  
+ 24      | 0       | 1   | 3    | 7   | 7      | 7       | 47       | 147         | 147       | 14   | 15  | RFAAAA   | AAAAAA   | AAAAxx  
+(14 rows)
+
+-- pt_heap_unique1_unique2_idx
+SELECT * FROM pt_heap WHERE unique1 < 10 and unique2 < 15 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 0       | 0       | 0   | 2    | 6   | 6      | 6       | 46       | 46          | 346       | 12   | 13  | OGAAAA   | YAAAAA   | AAAAxx  
+ 1       | 1       | 1   | 1    | 9   | 9      | 9       | 89       | 189         | 389       | 18   | 19  | ZOAAAA   | XAAAAA   | VVVVxx  
+ 2       | 2       | 0   | 2    | 6   | 6      | 6       | 66       | 166         | 466       | 12   | 13  | ELAAAA   | WAAAAA   | OOOOxx  
+ 3       | 3       | 1   | 1    | 7   | 17     | 7       | 97       | 197         | 497       | 14   | 15  | JMAAAA   | VAAAAA   | HHHHxx  
+(4 rows)
+
+-- pt_heap_two_four_idx
+SELECT * FROM pt_heap WHERE two = 1 and four = 3 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 5       | 19      | 1   | 3    | 3   | 3      | 3       | 83       | 183         | 183       | 6    | 7   | BHAAAA   | TAAAAA   | VVVVxx  
+ 11      | 13      | 1   | 3    | 1   | 11     | 1       | 11       | 11          | 111       | 2    | 3   | NXAAAA   | NAAAAA   | HHHHxx  
+ 17      | 7       | 1   | 3    | 3   | 3      | 3       | 43       | 143         | 43        | 6    | 7   | XUAAAA   | HAAAAA   | VVVVxx  
+ 19      | 5       | 1   | 3    | 9   | 19     | 9       | 39       | 39          | 439       | 18   | 19  | XQAAAA   | FAAAAA   | HHHHxx  
+ 20      | 4       | 1   | 3    | 3   | 3      | 3       | 83       | 83          | 383       | 6    | 7   | ZHAAAA   | EAAAAA   | AAAAxx  
+ 21      | 3       | 1   | 3    | 1   | 11     | 1       | 11       | 111         | 211       | 2    | 3   | JBAAAA   | DAAAAA   | VVVVxx  
+ 23      | 1       | 1   | 3    | 1   | 11     | 1       | 31       | 131         | 431       | 2    | 3   | VJAAAA   | BAAAAA   | HHHHxx  
+ 24      | 0       | 1   | 3    | 7   | 7      | 7       | 47       | 147         | 147       | 14   | 15  | RFAAAA   | AAAAAA   | AAAAxx  
+(8 rows)
+
+-- pt_heap_string4_bitmap_idx
+SELECT * FROM pt_heap WHERE stringu2 = 'WAAAAA' and string4 = 'OOOOxx' ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 2       | 2       | 0   | 2    | 6   | 6      | 6       | 66       | 166         | 466       | 12   | 13  | ELAAAA   | WAAAAA   | OOOOxx  
+(1 row)
+
+-- pt_heap_ten_twenty_bitmap_idx
+SELECT * FROM pt_heap WHERE ten = 9 and twenty = 19 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 19      | 5       | 1   | 3    | 9   | 19     | 9       | 39       | 39          | 439       | 18   | 19  | XQAAAA   | FAAAAA   | HHHHxx  
+(1 row)
+
+-- pt_heap_dropped_root_idx
+SELECT * FROM pt_heap WHERE hundred=5 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 4       | 20      | 1   | 1    | 5   | 5      | 5       | 85       | 85          | 385       | 10   | 11  | BIAAAA   | UAAAAA   | AAAAxx  
+ 16      | 8       | 1   | 1    | 5   | 5      | 5       | 25       | 25          | 425       | 10   | 11  | JQAAAA   | IAAAAA   | AAAAxx  
+(2 rows)
+
+-- pt_heap_mid_idx
+SELECT * FROM pt_heap_1_prt_part1 WHERE twothousand = 46 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 0       | 0       | 0   | 2    | 6   | 6      | 6       | 46       | 46          | 346       | 12   | 13  | OGAAAA   | YAAAAA   | AAAAxx  
+(1 row)
+
+-- pt_heap_leaf_idx
+SELECT * FROM pt_heap WHERE fivethous=346 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 0       | 0       | 0   | 2    | 6   | 6      | 6       | 46       | 46          | 346       | 12   | 13  | OGAAAA   | YAAAAA   | AAAAxx  
+(1 row)
+
+-- pt_heap_exchange1_idx
+SELECT * FROM pt_heap WHERE stringu1 = 'JMAAAA' ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 3       | 3       | 1   | 1    | 7   | 17     | 7       | 97       | 197         | 497       | 14   | 15  | JMAAAA   | VAAAAA   | HHHHxx  
+(1 row)
+
+--------------------------------------------------------------------------------
+-- AO PARTITIONED TABLE INDEXES
+--------------------------------------------------------------------------------
+
+SET gp_default_storage_options='appendonly=true';
+SET
+CREATE TABLE pt_ao ( unique1         int4, unique2         int4, two             int4, four            int4, ten             int4, twenty          int4, hundred         int4, thousand        int4, twothousand     int4, fivethous       int4, tenthous        int4, even            int4, odd             int4, stringu1        name, stringu2        name, string4         name ) distributed by (unique1) partition by range (unique1) subpartition by range (unique2) subpartition template ( subpartition subpart1 start (0) end (20) inclusive every (10)) ( partition part1 start (0) end (10));
+CREATE
+
+--- AO/CO tables do not support unique indexes on GPDB5/6
+CREATE INDEX pt_ao_unique1_idx ON pt_ao(unique1);
+CREATE
+CREATE INDEX pt_ao_unique2_idx ON pt_ao(unique2);
+CREATE
+CREATE INDEX pt_ao_unique1_unique2_idx ON pt_ao(unique1, unique2);
+CREATE
+CREATE INDEX pt_ao_two_four_idx ON pt_ao(two, four);
+CREATE
+CREATE INDEX pt_ao_string4_bitmap_idx ON pt_ao using bitmap(string4);
+CREATE
+CREATE INDEX pt_ao_ten_twenty_bitmap_idx ON pt_ao using bitmap(ten, twenty);
+CREATE
+
+-- Dropped root partition index
+CREATE INDEX pt_ao_dropped_root_idx ON pt_ao(hundred);
+CREATE
+DROP INDEX pt_ao_dropped_root_idx;
+DROP
+
+-- Dropped child partition index
+CREATE INDEX pt_ao_dropped_child_subpart1_idx ON pt_ao(thousand);
+CREATE
+DROP INDEX pt_ao_dropped_child_subpart1_idx_1_prt_part1_2_prt_subpart1_1;
+DROP
+
+-- Create index on mid-level partition. This won't be used unless
+-- querying the mid-level partition directly.
+CREATE INDEX pt_ao_mid_idx ON pt_ao_1_prt_part1(twothousand);
+CREATE
+
+-- Create index on leaf partition
+CREATE INDEX pt_ao_leaf_idx ON pt_ao_1_prt_part1_2_prt_subpart1_2(fivethous);
+CREATE
+
+-- Add partition
+ALTER TABLE pt_ao ADD PARTITION added_part START (11) END (15) inclusive;
+ALTER
+
+-- Add default partition
+ALTER TABLE pt_ao ADD DEFAULT PARTITION default_part;
+ALTER
+
+-- Exchange partition with index
+CREATE TABLE pt_ao_exchange1 (LIKE pt_ao);
+CREATE
+CREATE INDEX pt_ao_exchange1_idx ON pt_ao_exchange1(stringu1);
+CREATE
+ALTER TABLE pt_ao ALTER PARTITION part1 EXCHANGE PARTITION FOR (0) WITH TABLE pt_ao_exchange1;
+ALTER
+DROP TABLE pt_ao_exchange1;
+DROP
+
+-- Exchange partition without index
+CREATE TABLE pt_ao_exchange2 (LIKE pt_ao);
+CREATE
+ALTER TABLE pt_ao ALTER PARTITION FOR (RANK(2)) EXCHANGE PARTITION FOR (5) WITH TABLE pt_ao_exchange2;
+ALTER
+DROP TABLE pt_ao_exchange2;
+DROP
+
+-- Insert data
+COPY pt_ao FROM '@abs_srcdir@/data/indexes.data';
+COPY 25
+
+-- Create index on column, then drop column
+CREATE INDEX pt_ao_index_on_dropped_column ON pt_ao(tenthous);
+CREATE
+ALTER TABLE pt_ao DROP COLUMN tenthous;
+ALTER
+
+RESET gp_default_storage_options;
+RESET
+
+-- Check the indexes
+
+-- pt_ao_unique1_uniqueidx
+SELECT * FROM pt_ao WHERE unique1 < 10 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 0       | 0       | 0   | 2    | 6   | 6      | 6       | 46       | 46          | 346       | 12   | 13  | OGAAAA   | YAAAAA   | AAAAxx  
+ 1       | 1       | 1   | 1    | 9   | 9      | 9       | 89       | 189         | 389       | 18   | 19  | ZOAAAA   | XAAAAA   | VVVVxx  
+ 2       | 2       | 0   | 2    | 6   | 6      | 6       | 66       | 166         | 466       | 12   | 13  | ELAAAA   | WAAAAA   | OOOOxx  
+ 3       | 3       | 1   | 1    | 7   | 17     | 7       | 97       | 197         | 497       | 14   | 15  | JMAAAA   | VAAAAA   | HHHHxx  
+ 4       | 20      | 1   | 1    | 5   | 5      | 5       | 85       | 85          | 385       | 10   | 11  | BIAAAA   | UAAAAA   | AAAAxx  
+ 5       | 19      | 1   | 3    | 3   | 3      | 3       | 83       | 183         | 183       | 6    | 7   | BHAAAA   | TAAAAA   | VVVVxx  
+ 6       | 18      | 0   | 0    | 4   | 4      | 4       | 64       | 64          | 364       | 8    | 9   | GHAAAA   | SAAAAA   | OOOOxx  
+ 7       | 17      | 0   | 2    | 2   | 2      | 2       | 82       | 82          | 182       | 4    | 5   | GAAAAA   | RAAAAA   | HHHHxx  
+ 8       | 16      | 0   | 2    | 8   | 18     | 8       | 98       | 98          | 298       | 16   | 17  | MLAAAA   | QAAAAA   | AAAAxx  
+ 9       | 15      | 0   | 2    | 4   | 14     | 4       | 74       | 174         | 274       | 8    | 9   | UDAAAA   | PAAAAA   | VVVVxx  
+(10 rows)
+
+-- pt_ao_unique2_idx
+SELECT * FROM pt_ao WHERE unique2 < 10 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 0       | 0       | 0   | 2    | 6   | 6      | 6       | 46       | 46          | 346       | 12   | 13  | OGAAAA   | YAAAAA   | AAAAxx  
+ 1       | 1       | 1   | 1    | 9   | 9      | 9       | 89       | 189         | 389       | 18   | 19  | ZOAAAA   | XAAAAA   | VVVVxx  
+ 2       | 2       | 0   | 2    | 6   | 6      | 6       | 66       | 166         | 466       | 12   | 13  | ELAAAA   | WAAAAA   | OOOOxx  
+ 3       | 3       | 1   | 1    | 7   | 17     | 7       | 97       | 197         | 497       | 14   | 15  | JMAAAA   | VAAAAA   | HHHHxx  
+ 15      | 9       | 0   | 0    | 0   | 0      | 0       | 0        | 0           | 300       | 0    | 1   | UEAAAA   | JAAAAA   | HHHHxx  
+ 16      | 8       | 1   | 1    | 5   | 5      | 5       | 25       | 25          | 425       | 10   | 11  | JQAAAA   | IAAAAA   | AAAAxx  
+ 17      | 7       | 1   | 3    | 3   | 3      | 3       | 43       | 143         | 43        | 6    | 7   | XUAAAA   | HAAAAA   | VVVVxx  
+ 18      | 6       | 0   | 2    | 0   | 10     | 0       | 70       | 70          | 170       | 0    | 1   | UZAAAA   | GAAAAA   | OOOOxx  
+ 19      | 5       | 1   | 3    | 9   | 19     | 9       | 39       | 39          | 439       | 18   | 19  | XQAAAA   | FAAAAA   | HHHHxx  
+ 20      | 4       | 1   | 3    | 3   | 3      | 3       | 83       | 83          | 383       | 6    | 7   | ZHAAAA   | EAAAAA   | AAAAxx  
+ 21      | 3       | 1   | 3    | 1   | 11     | 1       | 11       | 111         | 211       | 2    | 3   | JBAAAA   | DAAAAA   | VVVVxx  
+ 22      | 2       | 0   | 2    | 4   | 14     | 4       | 14       | 114         | 214       | 8    | 9   | MBAAAA   | CAAAAA   | OOOOxx  
+ 23      | 1       | 1   | 3    | 1   | 11     | 1       | 31       | 131         | 431       | 2    | 3   | VJAAAA   | BAAAAA   | HHHHxx  
+ 24      | 0       | 1   | 3    | 7   | 7      | 7       | 47       | 147         | 147       | 14   | 15  | RFAAAA   | AAAAAA   | AAAAxx  
+(14 rows)
+
+-- pt_ao_unique1_unique2_idx
+SELECT * FROM pt_ao WHERE unique1 < 10 and unique2 < 15 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 0       | 0       | 0   | 2    | 6   | 6      | 6       | 46       | 46          | 346       | 12   | 13  | OGAAAA   | YAAAAA   | AAAAxx  
+ 1       | 1       | 1   | 1    | 9   | 9      | 9       | 89       | 189         | 389       | 18   | 19  | ZOAAAA   | XAAAAA   | VVVVxx  
+ 2       | 2       | 0   | 2    | 6   | 6      | 6       | 66       | 166         | 466       | 12   | 13  | ELAAAA   | WAAAAA   | OOOOxx  
+ 3       | 3       | 1   | 1    | 7   | 17     | 7       | 97       | 197         | 497       | 14   | 15  | JMAAAA   | VAAAAA   | HHHHxx  
+(4 rows)
+
+-- pt_ao_two_four_idx
+SELECT * FROM pt_ao WHERE two = 1 and four = 3 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 5       | 19      | 1   | 3    | 3   | 3      | 3       | 83       | 183         | 183       | 6    | 7   | BHAAAA   | TAAAAA   | VVVVxx  
+ 11      | 13      | 1   | 3    | 1   | 11     | 1       | 11       | 11          | 111       | 2    | 3   | NXAAAA   | NAAAAA   | HHHHxx  
+ 17      | 7       | 1   | 3    | 3   | 3      | 3       | 43       | 143         | 43        | 6    | 7   | XUAAAA   | HAAAAA   | VVVVxx  
+ 19      | 5       | 1   | 3    | 9   | 19     | 9       | 39       | 39          | 439       | 18   | 19  | XQAAAA   | FAAAAA   | HHHHxx  
+ 20      | 4       | 1   | 3    | 3   | 3      | 3       | 83       | 83          | 383       | 6    | 7   | ZHAAAA   | EAAAAA   | AAAAxx  
+ 21      | 3       | 1   | 3    | 1   | 11     | 1       | 11       | 111         | 211       | 2    | 3   | JBAAAA   | DAAAAA   | VVVVxx  
+ 23      | 1       | 1   | 3    | 1   | 11     | 1       | 31       | 131         | 431       | 2    | 3   | VJAAAA   | BAAAAA   | HHHHxx  
+ 24      | 0       | 1   | 3    | 7   | 7      | 7       | 47       | 147         | 147       | 14   | 15  | RFAAAA   | AAAAAA   | AAAAxx  
+(8 rows)
+
+-- pt_ao_string4_bitmap_idx
+SELECT * FROM pt_ao WHERE stringu2 = 'WAAAAA' and string4 = 'OOOOxx' ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 2       | 2       | 0   | 2    | 6   | 6      | 6       | 66       | 166         | 466       | 12   | 13  | ELAAAA   | WAAAAA   | OOOOxx  
+(1 row)
+
+-- pt_ao_ten_twenty_bitmap_idx
+SELECT * FROM pt_ao WHERE ten = 9 and twenty = 19 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 19      | 5       | 1   | 3    | 9   | 19     | 9       | 39       | 39          | 439       | 18   | 19  | XQAAAA   | FAAAAA   | HHHHxx  
+(1 row)
+
+-- pt_ao_dropped_root_idx
+SELECT * FROM pt_ao WHERE hundred=5 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 4       | 20      | 1   | 1    | 5   | 5      | 5       | 85       | 85          | 385       | 10   | 11  | BIAAAA   | UAAAAA   | AAAAxx  
+ 16      | 8       | 1   | 1    | 5   | 5      | 5       | 25       | 25          | 425       | 10   | 11  | JQAAAA   | IAAAAA   | AAAAxx  
+(2 rows)
+
+-- pt_ao_mid_idx
+SELECT * FROM pt_ao_1_prt_part1 WHERE twothousand = 46 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 0       | 0       | 0   | 2    | 6   | 6      | 6       | 46       | 46          | 346       | 12   | 13  | OGAAAA   | YAAAAA   | AAAAxx  
+(1 row)
+
+-- pt_ao_leaf_idx
+SELECT * FROM pt_ao WHERE fivethous=346 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 0       | 0       | 0   | 2    | 6   | 6      | 6       | 46       | 46          | 346       | 12   | 13  | OGAAAA   | YAAAAA   | AAAAxx  
+(1 row)
+
+-- pt_ao_exchange1_idx
+SELECT * FROM pt_ao WHERE stringu1 = 'JMAAAA' ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 3       | 3       | 1   | 1    | 7   | 17     | 7       | 97       | 197         | 497       | 14   | 15  | JMAAAA   | VAAAAA   | HHHHxx  
+(1 row)
+
+
+--------------------------------------------------------------------------------
+-- AOCO PARTITIONED TABLE INDEXES
+--------------------------------------------------------------------------------
+
+SET gp_default_storage_options='appendonly=true,orientation=column';
+SET
+CREATE TABLE pt_aoco ( unique1         int4, unique2         int4, two             int4, four            int4, ten             int4, twenty          int4, hundred         int4, thousand        int4, twothousand     int4, fivethous       int4, tenthous        int4, even            int4, odd             int4, stringu1        name, stringu2        name, string4         name ) distributed by (unique1) partition by range (unique1) subpartition by range (unique2) subpartition template ( subpartition subpart1 start (0) end (20) inclusive every (10)) ( partition part1 start (0) end (10));
+CREATE
+
+--- AO/CO tables do not support unique indexes on GPDB5/6
+CREATE INDEX pt_aoco_unique1_idx ON pt_aoco(unique1);
+CREATE
+CREATE INDEX pt_aoco_unique2_idx ON pt_aoco(unique2);
+CREATE
+CREATE INDEX pt_aoco_unique1_unique2_idx ON pt_aoco(unique1, unique2);
+CREATE
+CREATE INDEX pt_aoco_two_four_idx ON pt_aoco(two, four);
+CREATE
+CREATE INDEX pt_aoco_string4_bitmap_idx ON pt_aoco using bitmap(string4);
+CREATE
+CREATE INDEX pt_aoco_ten_twenty_bitmap_idx ON pt_aoco using bitmap(ten, twenty);
+CREATE
+
+-- Dropped root partition index
+CREATE INDEX pt_aoco_dropped_root_idx ON pt_aoco(hundred);
+CREATE
+DROP INDEX pt_aoco_dropped_root_idx;
+DROP
+
+-- Dropped child partition index
+CREATE INDEX pt_aoco_dropped_child_subpart1_idx ON pt_aoco(thousand);
+CREATE
+DROP INDEX pt_aoco_dropped_child_subpart1_idx_1_prt_part1_2_prt_subpart1_1;
+DROP
+
+-- Create index on mid-level partition. This won't be used unless
+-- querying the mid-level partition directly.
+CREATE INDEX pt_aoco_mid_idx ON pt_aoco_1_prt_part1(twothousand);
+CREATE
+
+-- Create index on leaf partition
+CREATE INDEX pt_aoco_leaf_idx ON pt_aoco_1_prt_part1_2_prt_subpart1_2(fivethous);
+CREATE
+
+-- Add partition
+ALTER TABLE pt_aoco ADD PARTITION added_part START (11) END (15) inclusive;
+ALTER
+
+-- Add default partition
+ALTER TABLE pt_aoco ADD DEFAULT PARTITION default_part;
+ALTER
+
+-- Exchange partition with index
+CREATE TABLE pt_aoco_exchange1 (LIKE pt_aoco);
+CREATE
+CREATE INDEX pt_aoco_exchange1_idx ON pt_aoco_exchange1(stringu1);
+CREATE
+ALTER TABLE pt_aoco ALTER PARTITION part1 EXCHANGE PARTITION FOR (0) WITH TABLE pt_aoco_exchange1;
+ALTER
+DROP TABLE pt_aoco_exchange1;
+DROP
+
+-- Exchange partition without index
+CREATE TABLE pt_aoco_exchange2 (LIKE pt_aoco);
+CREATE
+ALTER TABLE pt_aoco ALTER PARTITION FOR (RANK(2)) EXCHANGE PARTITION FOR (5) WITH TABLE pt_aoco_exchange2;
+ALTER
+DROP TABLE pt_aoco_exchange2;
+DROP
+
+-- Insert data
+COPY pt_aoco FROM '@abs_srcdir@/data/indexes.data';
+COPY 25
+
+-- Create index on column, then drop column
+CREATE INDEX pt_aoco_index_on_dropped_column ON pt_aoco(tenthous);
+CREATE
+ALTER TABLE pt_aoco DROP COLUMN tenthous;
+ALTER
+
+RESET gp_default_storage_options;
+RESET
+
+-- Check the indexes
+
+-- pt_aoco_unique1_uniqueidx
+SELECT * FROM pt_aoco WHERE unique1 < 10 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 0       | 0       | 0   | 2    | 6   | 6      | 6       | 46       | 46          | 346       | 12   | 13  | OGAAAA   | YAAAAA   | AAAAxx  
+ 1       | 1       | 1   | 1    | 9   | 9      | 9       | 89       | 189         | 389       | 18   | 19  | ZOAAAA   | XAAAAA   | VVVVxx  
+ 2       | 2       | 0   | 2    | 6   | 6      | 6       | 66       | 166         | 466       | 12   | 13  | ELAAAA   | WAAAAA   | OOOOxx  
+ 3       | 3       | 1   | 1    | 7   | 17     | 7       | 97       | 197         | 497       | 14   | 15  | JMAAAA   | VAAAAA   | HHHHxx  
+ 4       | 20      | 1   | 1    | 5   | 5      | 5       | 85       | 85          | 385       | 10   | 11  | BIAAAA   | UAAAAA   | AAAAxx  
+ 5       | 19      | 1   | 3    | 3   | 3      | 3       | 83       | 183         | 183       | 6    | 7   | BHAAAA   | TAAAAA   | VVVVxx  
+ 6       | 18      | 0   | 0    | 4   | 4      | 4       | 64       | 64          | 364       | 8    | 9   | GHAAAA   | SAAAAA   | OOOOxx  
+ 7       | 17      | 0   | 2    | 2   | 2      | 2       | 82       | 82          | 182       | 4    | 5   | GAAAAA   | RAAAAA   | HHHHxx  
+ 8       | 16      | 0   | 2    | 8   | 18     | 8       | 98       | 98          | 298       | 16   | 17  | MLAAAA   | QAAAAA   | AAAAxx  
+ 9       | 15      | 0   | 2    | 4   | 14     | 4       | 74       | 174         | 274       | 8    | 9   | UDAAAA   | PAAAAA   | VVVVxx  
+(10 rows)
+
+-- pt_aoco_unique2_idx
+SELECT * FROM pt_aoco WHERE unique2 < 10 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 0       | 0       | 0   | 2    | 6   | 6      | 6       | 46       | 46          | 346       | 12   | 13  | OGAAAA   | YAAAAA   | AAAAxx  
+ 1       | 1       | 1   | 1    | 9   | 9      | 9       | 89       | 189         | 389       | 18   | 19  | ZOAAAA   | XAAAAA   | VVVVxx  
+ 2       | 2       | 0   | 2    | 6   | 6      | 6       | 66       | 166         | 466       | 12   | 13  | ELAAAA   | WAAAAA   | OOOOxx  
+ 3       | 3       | 1   | 1    | 7   | 17     | 7       | 97       | 197         | 497       | 14   | 15  | JMAAAA   | VAAAAA   | HHHHxx  
+ 15      | 9       | 0   | 0    | 0   | 0      | 0       | 0        | 0           | 300       | 0    | 1   | UEAAAA   | JAAAAA   | HHHHxx  
+ 16      | 8       | 1   | 1    | 5   | 5      | 5       | 25       | 25          | 425       | 10   | 11  | JQAAAA   | IAAAAA   | AAAAxx  
+ 17      | 7       | 1   | 3    | 3   | 3      | 3       | 43       | 143         | 43        | 6    | 7   | XUAAAA   | HAAAAA   | VVVVxx  
+ 18      | 6       | 0   | 2    | 0   | 10     | 0       | 70       | 70          | 170       | 0    | 1   | UZAAAA   | GAAAAA   | OOOOxx  
+ 19      | 5       | 1   | 3    | 9   | 19     | 9       | 39       | 39          | 439       | 18   | 19  | XQAAAA   | FAAAAA   | HHHHxx  
+ 20      | 4       | 1   | 3    | 3   | 3      | 3       | 83       | 83          | 383       | 6    | 7   | ZHAAAA   | EAAAAA   | AAAAxx  
+ 21      | 3       | 1   | 3    | 1   | 11     | 1       | 11       | 111         | 211       | 2    | 3   | JBAAAA   | DAAAAA   | VVVVxx  
+ 22      | 2       | 0   | 2    | 4   | 14     | 4       | 14       | 114         | 214       | 8    | 9   | MBAAAA   | CAAAAA   | OOOOxx  
+ 23      | 1       | 1   | 3    | 1   | 11     | 1       | 31       | 131         | 431       | 2    | 3   | VJAAAA   | BAAAAA   | HHHHxx  
+ 24      | 0       | 1   | 3    | 7   | 7      | 7       | 47       | 147         | 147       | 14   | 15  | RFAAAA   | AAAAAA   | AAAAxx  
+(14 rows)
+
+-- pt_aoco_unique1_unique2_idx
+SELECT * FROM pt_aoco WHERE unique1 < 10 and unique2 < 15 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 0       | 0       | 0   | 2    | 6   | 6      | 6       | 46       | 46          | 346       | 12   | 13  | OGAAAA   | YAAAAA   | AAAAxx  
+ 1       | 1       | 1   | 1    | 9   | 9      | 9       | 89       | 189         | 389       | 18   | 19  | ZOAAAA   | XAAAAA   | VVVVxx  
+ 2       | 2       | 0   | 2    | 6   | 6      | 6       | 66       | 166         | 466       | 12   | 13  | ELAAAA   | WAAAAA   | OOOOxx  
+ 3       | 3       | 1   | 1    | 7   | 17     | 7       | 97       | 197         | 497       | 14   | 15  | JMAAAA   | VAAAAA   | HHHHxx  
+(4 rows)
+
+-- pt_aoco_two_four_idx
+SELECT * FROM pt_aoco WHERE two = 1 and four = 3 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 5       | 19      | 1   | 3    | 3   | 3      | 3       | 83       | 183         | 183       | 6    | 7   | BHAAAA   | TAAAAA   | VVVVxx  
+ 11      | 13      | 1   | 3    | 1   | 11     | 1       | 11       | 11          | 111       | 2    | 3   | NXAAAA   | NAAAAA   | HHHHxx  
+ 17      | 7       | 1   | 3    | 3   | 3      | 3       | 43       | 143         | 43        | 6    | 7   | XUAAAA   | HAAAAA   | VVVVxx  
+ 19      | 5       | 1   | 3    | 9   | 19     | 9       | 39       | 39          | 439       | 18   | 19  | XQAAAA   | FAAAAA   | HHHHxx  
+ 20      | 4       | 1   | 3    | 3   | 3      | 3       | 83       | 83          | 383       | 6    | 7   | ZHAAAA   | EAAAAA   | AAAAxx  
+ 21      | 3       | 1   | 3    | 1   | 11     | 1       | 11       | 111         | 211       | 2    | 3   | JBAAAA   | DAAAAA   | VVVVxx  
+ 23      | 1       | 1   | 3    | 1   | 11     | 1       | 31       | 131         | 431       | 2    | 3   | VJAAAA   | BAAAAA   | HHHHxx  
+ 24      | 0       | 1   | 3    | 7   | 7      | 7       | 47       | 147         | 147       | 14   | 15  | RFAAAA   | AAAAAA   | AAAAxx  
+(8 rows)
+
+-- pt_aoco_string4_bitmap_idx
+SELECT * FROM pt_aoco WHERE stringu2 = 'WAAAAA' and string4 = 'OOOOxx' ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 2       | 2       | 0   | 2    | 6   | 6      | 6       | 66       | 166         | 466       | 12   | 13  | ELAAAA   | WAAAAA   | OOOOxx  
+(1 row)
+
+-- pt_aoco_ten_twenty_bitmap_idx
+SELECT * FROM pt_aoco WHERE ten = 9 and twenty = 19 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 19      | 5       | 1   | 3    | 9   | 19     | 9       | 39       | 39          | 439       | 18   | 19  | XQAAAA   | FAAAAA   | HHHHxx  
+(1 row)
+
+-- pt_aoco_dropped_root_idx
+SELECT * FROM pt_aoco WHERE hundred=5 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 4       | 20      | 1   | 1    | 5   | 5      | 5       | 85       | 85          | 385       | 10   | 11  | BIAAAA   | UAAAAA   | AAAAxx  
+ 16      | 8       | 1   | 1    | 5   | 5      | 5       | 25       | 25          | 425       | 10   | 11  | JQAAAA   | IAAAAA   | AAAAxx  
+(2 rows)
+
+-- pt_aoco_mid_idx
+SELECT * FROM pt_aoco_1_prt_part1 WHERE twothousand = 46 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 0       | 0       | 0   | 2    | 6   | 6      | 6       | 46       | 46          | 346       | 12   | 13  | OGAAAA   | YAAAAA   | AAAAxx  
+(1 row)
+
+-- pt_aoco_leaf_idx
+SELECT * FROM pt_aoco WHERE fivethous=346 ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 0       | 0       | 0   | 2    | 6   | 6      | 6       | 46       | 46          | 346       | 12   | 13  | OGAAAA   | YAAAAA   | AAAAxx  
+(1 row)
+
+-- pt_aoco_exchange1_idx
+SELECT * FROM pt_aoco WHERE stringu1 = 'JMAAAA' ORDER BY 1;
+ unique1 | unique2 | two | four | ten | twenty | hundred | thousand | twothousand | fivethous | even | odd | stringu1 | stringu2 | string4 
+---------+---------+-----+------+-----+--------+---------+----------+-------------+-----------+------+-----+----------+----------+---------
+ 3       | 3       | 1   | 1    | 7   | 17     | 7       | 97       | 197         | 497       | 14   | 15  | JMAAAA   | VAAAAA   | HHHHxx  
+(1 row)
+
+--------------------------------------------------------------------------------
+-- UNIQUE CONSTRAINT
+--------------------------------------------------------------------------------
+
+CREATE TABLE pt_unique_constraint(a int NOT NULL, b char(25)) DISTRIBUTED BY (a) PARTITION BY range (b) (PARTITION part1 START (0), PARTITION part2 START (5) END (8));
+CREATE
+
+ALTER TABLE pt_unique_constraint ADD UNIQUE(a,b);
+ALTER
+ALTER TABLE pt_unique_constraint ADD PARTITION added_part START (9);
+ALTER
+ALTER TABLE pt_unique_constraint ADD DEFAULT PARTITION default_part;
+ALTER
+ALTER TABLE pt_unique_constraint SPLIT PARTITION part2 AT (6) INTO (PARTITION part2_split_l, PARTITION part2_split_r);
+ALTER
+ALTER TABLE pt_unique_constraint RENAME PARTITION part1 to part1_renamed;
+ALTER
+
+INSERT INTO pt_unique_constraint SELECT i,i FROM generate_series(0, 10)i;
+INSERT 11
+
+--------------------------------------------------------------------------------
+-- UNIQUE CONSTRAINT WITH EXCHANGE
+--------------------------------------------------------------------------------
+
+CREATE TABLE pt_unique_exchange(a int NOT NULL, b char(25)) DISTRIBUTED BY (a) PARTITION BY range (b) (PARTITION part1 START (0), PARTITION part2 START (5) END (8));
+CREATE
+
+ALTER TABLE pt_unique_exchange ADD UNIQUE(a,b);
+ALTER
+CREATE TABLE pt_unq_exch (LIKE pt_unique_exchange INCLUDING CONSTRAINTS INCLUDING INDEXES);
+CREATE
+ALTER TABLE pt_unique_exchange EXCHANGE PARTITION part1 WITH TABLE pt_unq_exch;
+ALTER
+DROP TABLE pt_unq_exch;
+DROP
+
+INSERT INTO pt_unique_exchange SELECT i,i FROM generate_series(0, 7)i;
+INSERT 8
+
+--------------------------------------------------------------------------------
+-- UNIQUE CONSTRAINT INSIDE CREATE TABLE DDL
+--------------------------------------------------------------------------------
+
+CREATE TABLE pt_unique_inside_create_table(a int NOT NULL, b char(25), UNIQUE(a,b)) DISTRIBUTED BY (a) PARTITION BY range (b) (PARTITION part1 START (0), PARTITION part2 START (5) END (8));
+CREATE
+
+INSERT INTO pt_unique_inside_create_table SELECT i,i FROM generate_series(0, 7)i;
+INSERT 8
+
+--------------------------------------------------------------------------------
+-- UNIQUE INDEX WITH UNIQUE CONSTRAINT HAVING SAME NAME
+--------------------------------------------------------------------------------
+
+CREATE TABLE pt_unique_index_same_name(a int NOT NULL, b char(25)) DISTRIBUTED BY (a) PARTITION BY range (b) (PARTITION part1 START (0), PARTITION part2 START (5) END (8));
+CREATE
+
+CREATE INDEX pt_unique_index_same_name_a_key ON pt_unique_index_same_name(a,b);
+CREATE
+
+ALTER TABLE pt_unique_index_same_name ADD UNIQUE(a,b);
+ALTER
+
+INSERT INTO pt_unique_index_same_name SELECT i,i FROM generate_series(0, 7)i;
+INSERT 8

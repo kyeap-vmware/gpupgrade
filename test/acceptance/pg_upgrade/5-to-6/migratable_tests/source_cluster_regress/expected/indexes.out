@@ -1,0 +1,163 @@
+-- Copyright (c) 2017-2023 VMware, Inc. or its affiliates
+-- SPDX-License-Identifier: Apache-2.0
+
+-- The indexes in this test can be migrated, but are marked as
+-- invalid on the target cluster during execute. They must be
+-- REINDEX'd on the target cluster during finalize to rebuild
+-- and reset them to valid.
+
+--------------------------------------------------------------------------------
+-- Create and setup migratable objects
+--------------------------------------------------------------------------------
+
+CREATE TABLE heap_with_bpchar_pattern_ops(a int, b bpchar);
+CREATE
+CREATE TABLE heap_with_bitmap(a int, b int);
+CREATE
+CREATE TABLE ao_with_btree(a int, b int) WITH (appendonly=true);
+CREATE
+CREATE TABLE ao_with_bitmap(a int, b int) WITH (appendonly=true);
+CREATE
+CREATE TABLE ao_with_gist(a int, b tsvector) WITH (appendonly=true);
+CREATE
+CREATE TABLE aoco_with_btree(a int, b int) WITH (appendonly=true, orientation=column);
+CREATE
+CREATE TABLE aoco_with_bitmap(a int, b int) WITH (appendonly=true, orientation=column);
+CREATE
+CREATE TABLE aoco_with_gist(a int, b tsvector) WITH (appendonly=true, orientation=column);
+CREATE
+
+INSERT INTO heap_with_bpchar_pattern_ops SELECT i,i::bpchar FROM generate_series(1,10)i;
+INSERT 10
+INSERT INTO heap_with_bitmap SELECT i,i FROM generate_series(1,10)i;
+INSERT 10
+INSERT INTO ao_with_btree SELECT i,i FROM generate_series(1,10)i;
+INSERT 10
+INSERT INTO ao_with_bitmap SELECT i,i%5 FROM generate_series(1,10)i;
+INSERT 10
+INSERT INTO ao_with_gist SELECT 1,j.res::tsvector FROM (SELECT 'footext' || i%3 AS res FROM generate_series(1,10) i) j;
+INSERT 10
+INSERT INTO aoco_with_btree SELECT i,i FROM generate_series(1,10)i;
+INSERT 10
+INSERT INTO aoco_with_bitmap SELECT i,i%5 FROM generate_series(1,10)i;
+INSERT 10
+INSERT INTO aoco_with_gist SELECT 1,j.res::tsvector FROM (SELECT 'footext' || i%3 AS res FROM generate_series(1,10) i) j;
+INSERT 10
+
+CREATE INDEX heap_with_bpchar_pattern_ops_idx on heap_with_bpchar_pattern_ops (b bpchar_pattern_ops);
+CREATE
+CREATE INDEX heap_with_bitmap_idx on heap_with_bitmap using bitmap(b);
+CREATE
+CREATE INDEX ao_with_btree_idx ON ao_with_btree USING btree(b);
+CREATE
+CREATE INDEX ao_with_bitmap_idx ON ao_with_bitmap USING bitmap(b);
+CREATE
+CREATE INDEX ao_with_gist_idx ON ao_with_gist USING gist(b);
+CREATE
+CREATE INDEX aoco_with_btree_idx ON aoco_with_btree USING btree(b);
+CREATE
+CREATE INDEX aoco_with_bitmap_idx ON aoco_with_bitmap USING bitmap(b);
+CREATE
+CREATE INDEX aoco_with_gist_idx ON aoco_with_gist USING gist(b);
+CREATE
+
+-- Show what the indexes are before upgrade
+SELECT c.relname, a.amname FROM pg_class c JOIN pg_am a ON c.relam = a.oid WHERE relname SIMILAR TO '(ao|aoco|heap)_with_(btree|bitmap|gist|bpchar_pattern_ops)_idx';
+ relname                          | amname 
+----------------------------------+--------
+ heap_with_bpchar_pattern_ops_idx | btree  
+ heap_with_bitmap_idx             | bitmap 
+ ao_with_btree_idx                | btree  
+ ao_with_bitmap_idx               | bitmap 
+ ao_with_gist_idx                 | gist   
+ aoco_with_btree_idx              | btree  
+ aoco_with_bitmap_idx             | bitmap 
+ aoco_with_gist_idx               | gist   
+(8 rows)
+
+-- Show that the indexes are usable before upgrade
+SET enable_indexscan = true;
+SET
+SET enable_bitmapscan = true;
+SET
+SET enable_seqscan = false;
+SET
+SET optimizer = off;
+SET
+
+SELECT * FROM heap_with_bpchar_pattern_ops WHERE b::bpchar LIKE '1';
+ a | b 
+---+---
+ 1 | 1 
+(1 row)
+SELECT * FROM heap_with_bitmap WHERE b = 1;
+ a | b 
+---+---
+ 1 | 1 
+(1 row)
+SELECT * FROM ao_with_btree WHERE b > 8;
+ a  | b  
+----+----
+ 9  | 9  
+ 10 | 10 
+(2 rows)
+SELECT * FROM ao_with_bitmap WHERE b = 1;
+ a | b 
+---+---
+ 1 | 1 
+ 6 | 1 
+(2 rows)
+SELECT * FROM ao_with_gist WHERE b @@ to_tsquery('footext1');
+ a | b          
+---+------------
+ 1 | 'footext1' 
+ 1 | 'footext1' 
+ 1 | 'footext1' 
+ 1 | 'footext1' 
+(4 rows)
+SELECT * FROM aoco_with_btree WHERE b > 8;
+ a  | b  
+----+----
+ 9  | 9  
+ 10 | 10 
+(2 rows)
+SELECT * FROM aoco_with_bitmap WHERE b = 1;
+ a | b 
+---+---
+ 6 | 1 
+ 1 | 1 
+(2 rows)
+SELECT * FROM aoco_with_gist WHERE b @@ to_tsquery('footext1');
+ a | b          
+---+------------
+ 1 | 'footext1' 
+ 1 | 'footext1' 
+ 1 | 'footext1' 
+ 1 | 'footext1' 
+(4 rows)
+
+
+
+-- When the last index on an AO table is deleted, the table's corresponding
+-- pg_aoblkdir is not deleted. The aoblkdir is first created when an index is
+-- created for the AO table. If an index is created for an AO table then
+-- deleted, an aodblkdir relation is left on the source cluster. During
+-- pg_upgrade, pg_dump will not dump an index which means the aoblkdir does not
+-- get created on the target cluster. If this is not accounted for, pg_upgrade
+-- will error out due to relation mismatch. To resolve this edge case,
+-- pg_upgrade filters out aoblkdirs for AO tables with no indexes.
+
+-- Setup AO table with unused aoblkdir
+CREATE TABLE aotable_with_all_indexes_dropped(i int) WITH (appendonly=true);
+CREATE
+CREATE INDEX idx on aotable_with_all_indexes_dropped(i);
+CREATE
+DROP INDEX idx;
+DROP
+
+-- Check unused aoblkdir exists
+SELECT c.relname AS relname, CASE WHEN a.blkdirrelid = 0 THEN 'False' ELSE 'True' END AS has_aoblkdir FROM pg_appendonly a JOIN pg_class c on c.oid=a.relid WHERE c.relname='aotable_with_all_indexes_dropped';
+ relname                          | has_aoblkdir 
+----------------------------------+--------------
+ aotable_with_all_indexes_dropped | True         
+(1 row)

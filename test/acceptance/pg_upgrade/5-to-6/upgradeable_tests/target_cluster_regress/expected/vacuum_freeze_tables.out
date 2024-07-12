@@ -5,12 +5,8 @@
 -- Validate that the upgradeable objects are functional post-upgrade
 --------------------------------------------------------------------------------
 
--- should be able to vacuum freeze the tables
-VACUUM FREEZE vf_tbl_heap;
-VACUUM
-VACUUM FREEZE vf_tbl_ao;
-VACUUM
-VACUUM FREEZE vf_tbl_aoco;
+-- VACUUM FREEZE the entire database to ensure there are no failures.
+VACUUM FREEZE;
 VACUUM
 
 -- should be able to create a new table without any warnings related to vacuum

@@ -133,10 +133,19 @@ func TestInitialize(t *testing.T) {
 		acceptance.Initialize(t, idl.Mode_copy)
 		defer acceptance.Revert(t)
 
-		// create a non-upgradeable object to assert pg_upgrade --check is always run
 		source := acceptance.GetSourceCluster(t)
-		testutils.MustExecuteSQL(t, source.Connection(), `CREATE TABLE public.test_pg_upgrade(a int) DISTRIBUTED BY (a) PARTITION BY RANGE (a)(start (1) end(4) every(1)); CREATE UNIQUE INDEX fomo ON public.test_pg_upgrade (a);`)
-		defer testutils.MustExecuteSQL(t, source.Connection(), `DROP TABLE IF EXISTS public.test_pg_upgrade CASCADE;`)
+
+		// create a non-upgradeable object to assert pg_upgrade --check is always run
+		if source.Version.Major == 5 {
+			testutils.MustExecuteSQL(t, source.Connection(), `SELECT lo_create(1);`)
+			defer testutils.MustExecuteSQL(t, source.Connection(), `SELECT lo_unlink(loid) FROM pg_largeobject;`)
+		} else if source.Version.Major == 6 {
+			testutils.MustExecuteSQL(t, source.Connection(), `
+			CREATE TABLE public.table_using_system_defined_type (pg_type_column pg_type);`)
+			defer testutils.MustExecuteSQL(t, source.Connection(), `DROP TABLE public.table_using_system_defined_type;`)
+		} else {
+			t.Fatalf("unexpected major version %d", source.Version.Major)
+		}
 
 		// re-run initialize and check that pg_upgrade --check ran
 		cmd := exec.Command("gpupgrade", "initialize",

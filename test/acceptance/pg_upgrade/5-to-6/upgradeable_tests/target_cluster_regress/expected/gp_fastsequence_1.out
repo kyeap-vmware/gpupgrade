@@ -27,6 +27,19 @@ SET enable_bitmapscan = false;
 SET
 SET enable_seqscan = true;
 SET
+SET optimizer = off;
+SET
+
+EXPLAIN (COSTS OFF) SELECT * FROM aotable_fastsequence ORDER BY i;
+ QUERY PLAN                                   
+----------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)     
+   Merge Key: i                               
+   ->  Sort                                   
+         Sort Key: i                          
+         ->  Seq Scan on aotable_fastsequence 
+ Optimizer: Postgres query optimizer          
+(6 rows)
 SELECT * FROM aotable_fastsequence ORDER BY i;
  i   
 -----
@@ -96,28 +109,24 @@ SELECT gp_segment_id, ctid, count(ctid) FROM aotable_fastsequence GROUP BY gp_se
 ---------------+------+-------
 (0 rows)
 
--- The following gpdb commits changed aotids format which means indexes are not
--- safe to upgrade.
--- https://github.com/greenplum-db/gpdb/commit/c249ac7a36d9da3d25b6c419fbd07e2c9cfe954f
--- https://github.com/greenplum-db/gpdb/commit/fa1e76c3d72316bdcb34dd3d3b34736cd03e840f
--- Indexes are invalid and should not work after upgrade
--- This select will cause an expected FATAL that will trigger a crash recovery
--- on debug builds.
 SET enable_indexscan = true;
 SET
 SET enable_bitmapscan = true;
 SET
 SET enable_seqscan = false;
 SET
-SET gp_debug_linger = 0;
-SET
-SELECT * FROM aotable_fastsequence WHERE i < 10 ORDER BY i;
-ERROR:  Unexpected internal error (appendonlytid.h:66)  (seg0 slice1 127.0.1.1:50434 pid=1297920) (appendonlytid.h:66)
-DETAIL:  FailedAssertion("!(h->bytes_4_5 <= 0x8000)", File: "../../../../src/include/access/appendonlytid.h", Line: 66)
 
--- Verify indexes are functional after REINDEX
-REINDEX TABLE aotable_fastsequence;
-REINDEX
+EXPLAIN (COSTS OFF) SELECT * FROM aotable_fastsequence ORDER BY i;
+ QUERY PLAN                                                      
+-----------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)                        
+   Merge Key: i                                                  
+   ->  Sort                                                      
+         Sort Key: i                                             
+         ->  Bitmap Heap Scan on aotable_fastsequence            
+               ->  Bitmap Index Scan on aotable_fastsequence_idx 
+ Optimizer: Postgres query optimizer                             
+(7 rows)
 SELECT * FROM aotable_fastsequence WHERE i < 10 ORDER BY i;
  i 
 ---
@@ -131,8 +140,6 @@ SELECT * FROM aotable_fastsequence WHERE i < 10 ORDER BY i;
  8 
  9 
 (9 rows)
-
-
 
 -- Verify table's gp_fastsequence value is preserved
 SELECT fs.gp_segment_id, fs.objmod, fs.last_sequence FROM pg_class c JOIN pg_appendonly ao ON c.oid=ao.relid JOIN gp_dist_random('gp_fastsequence') fs ON ao.segrelid=fs.objid WHERE c.relname='aocotable_fastsequence' ORDER BY 1, 2, 3;
@@ -156,6 +163,17 @@ SET enable_bitmapscan = false;
 SET
 SET enable_seqscan = true;
 SET
+
+EXPLAIN (COSTS OFF) SELECT * FROM aocotable_fastsequence ORDER BY i;
+ QUERY PLAN                                     
+------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)       
+   Merge Key: i                                 
+   ->  Sort                                     
+         Sort Key: i                            
+         ->  Seq Scan on aocotable_fastsequence 
+ Optimizer: Postgres query optimizer            
+(6 rows)
 SELECT * FROM aocotable_fastsequence ORDER BY i;
  i   
 -----
@@ -212,43 +230,37 @@ SELECT * FROM aocotable_fastsequence ORDER BY i;
 (50 rows)
 
 -- Verify INSERTs produce no duplicate ctids
--- Verify using additional sessions since sessions 1 and 2 become disconnected
--- due to the expected failed index query in session 1 causing a crash recovery.
-3: BEGIN;
+1: BEGIN;
 BEGIN
-3: INSERT INTO aocotable_fastsequence SELECT generate_series(1001, 1010);
+1: INSERT INTO aocotable_fastsequence SELECT generate_series(1001, 1010);
 INSERT 10
-4: INSERT INTO aocotable_fastsequence SELECT generate_series(1011, 1020);
+2: INSERT INTO aocotable_fastsequence SELECT generate_series(1011, 1020);
 INSERT 10
-3: COMMIT;
+1: COMMIT;
 COMMIT
 SELECT gp_segment_id, ctid, count(ctid) FROM aocotable_fastsequence GROUP BY gp_segment_id, ctid HAVING count(ctid) > 1;
  gp_segment_id | ctid | count 
 ---------------+------+-------
 (0 rows)
 
--- The following gpdb commits changed aotids format which means indexes are not
--- safe to upgrade.
--- https://github.com/greenplum-db/gpdb/commit/c249ac7a36d9da3d25b6c419fbd07e2c9cfe954f
--- https://github.com/greenplum-db/gpdb/commit/fa1e76c3d72316bdcb34dd3d3b34736cd03e840f
--- Indexes are invalid and should not work after upgrade
--- This select will cause an expected FATAL that will trigger a crash recovery
--- on debug builds.
 SET enable_indexscan = true;
 SET
 SET enable_bitmapscan = true;
 SET
 SET enable_seqscan = false;
 SET
-SET gp_debug_linger = 0;
-SET
-SELECT * FROM aocotable_fastsequence WHERE i < 10 ORDER BY i;
-ERROR:  Unexpected internal error (appendonlytid.h:66)  (seg0 slice1 127.0.1.1:50434 pid=1297920) (appendonlytid.h:66)
-DETAIL:  FailedAssertion("!(h->bytes_4_5 <= 0x8000)", File: "../../../../src/include/access/appendonlytid.h", Line: 66)
 
--- Verify indexes are functional after REINDEX
-REINDEX TABLE aocotable_fastsequence;
-REINDEX
+EXPLAIN (COSTS OFF) SELECT * FROM aocotable_fastsequence ORDER BY i;
+ QUERY PLAN                                                        
+-------------------------------------------------------------------
+ Gather Motion 3:1  (slice1; segments: 3)                          
+   Merge Key: i                                                    
+   ->  Sort                                                        
+         Sort Key: i                                               
+         ->  Bitmap Heap Scan on aocotable_fastsequence            
+               ->  Bitmap Index Scan on aocotable_fastsequence_idx 
+ Optimizer: Postgres query optimizer                               
+(7 rows)
 SELECT * FROM aocotable_fastsequence WHERE i < 10 ORDER BY i;
  i 
 ---
