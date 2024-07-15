@@ -139,6 +139,7 @@ Required Flags:
 Optional Flags:
 
   -h, --help                 displays help output for initialize
+      --jobs                 number of jobs to run for steps that can run in parallel. Defaults to 4.
   -v, --verbose              outputs detailed logs for initialize
       --pg-upgrade-verbose   execute pg_upgrade with verbose internal logging. Requires the verbose flag.
 
@@ -158,6 +159,7 @@ Usage: gpupgrade execute
 Optional Flags:
 
   -h, --help                 displays help output for execute
+      --jobs                 number of jobs to run for steps that can run in parallel. Defaults to 4.
   -v, --verbose              outputs detailed logs for execute
       --pg-upgrade-verbose   execute pg_upgrade with verbose internal logging. Requires the verbose flag.
       --parent-backup-dir    The parent directory location used internally to store the backup of the 
@@ -181,6 +183,7 @@ Usage: gpupgrade finalize
 Optional Flags:
 
   -h, --help      displays help output for finalize
+      --jobs                 number of jobs to run for steps that can run in parallel. Defaults to 4.
   -v, --verbose   outputs detailed logs for finalize
 
 NOTE: After running finalize, you must execute data migration scripts. 

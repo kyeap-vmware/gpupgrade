@@ -34,7 +34,7 @@ type Pooler interface {
 	Select(dest any, sql string, args ...any) error
 	Close()
 	ConnString() string
-	Jobs() uint
+	Jobs() int32
 	Database() string
 	Version() semver.Version
 }
@@ -43,7 +43,7 @@ type Pool struct {
 	*pgxpool.Pool
 	database   string
 	version    semver.Version
-	jobs       uint
+	jobs       int32
 	connString string
 }
 
@@ -117,7 +117,7 @@ func NewPooler(options ...Option) (Pooler, error) {
 	}
 	conn.Release()
 
-	return &Pool{Pool: pool, database: database, version: version, jobs: uint(config.MaxConns), connString: pool.Config().ConnString()}, nil
+	return &Pool{Pool: pool, database: database, version: version, jobs: config.MaxConns, connString: pool.Config().ConnString()}, nil
 }
 
 func (p *Pool) Exec(query string, args ...any) error {
@@ -192,15 +192,15 @@ func (p *Pool) Close() {
 	}
 }
 
-func (p *Pool) Jobs() uint {
-	return uint(p.Config().MaxConns)
+func (p *Pool) Jobs() int32 {
+	return p.Config().MaxConns
 }
 
 func (p *Pool) ConnString() string {
 	return p.connString
 }
 
-func ExecuteCommands(cluster *Cluster, database string, commands []string, jobs uint) error {
+func ExecuteCommands(cluster *Cluster, database string, commands []string, jobs int32) error {
 	var errs error
 
 	pool, err := NewPoolerFunc(Port(cluster.CoordinatorPort()), Database(database), Jobs(jobs))
@@ -209,10 +209,10 @@ func ExecuteCommands(cluster *Cluster, database string, commands []string, jobs 
 	}
 	defer pool.Close()
 
-	numCommands := len(commands)
+	numCommands := int32(len(commands))
 	errChan := make(chan error, numCommands)
 	commandsChan := make(chan string, numCommands)
-	jobs = min(pool.Jobs(), uint(numCommands))
+	jobs = min(pool.Jobs(), numCommands)
 
 	var wg sync.WaitGroup
 	for j := 0; j < int(jobs); j++ {
@@ -303,7 +303,7 @@ func AllowSystemTableMods() Option {
 	}
 }
 
-func Jobs(jobs uint) Option {
+func Jobs(jobs int32) Option {
 	return func(options *optionList) {
 		options.jobs = jobs
 	}
@@ -320,7 +320,7 @@ type optionList struct {
 	database             string
 	utilityMode          bool
 	allowSystemTableMods bool
-	jobs                 uint
+	jobs                 int32
 	gucs                 []string
 }
 

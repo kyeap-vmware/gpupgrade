@@ -55,7 +55,7 @@ func (s *Server) Execute(req *idl.ExecuteRequest, stream idl.CliToHub_ExecuteSer
 
 	pgUpgradeTimestamp := utils.System.Now().Format(TimeStringFormat)
 	st.Run(idl.Substep_upgrade_master, func(streams step.OutStreams) error {
-		return UpgradeCoordinator(streams, s.BackupDirs.CoordinatorBackupDir, req.GetPgUpgradeVerbose(), req.GetSkipPgUpgradeChecks(), s.Jobs, s.Source, s.Intermediate, idl.PgOptions_upgrade, s.Mode, pgUpgradeTimestamp)
+		return UpgradeCoordinator(streams, s.BackupDirs.CoordinatorBackupDir, req.GetPgUpgradeVerbose(), req.GetSkipPgUpgradeChecks(), req.GetJobs(), s.Source, s.Intermediate, idl.PgOptions_upgrade, s.Mode, pgUpgradeTimestamp)
 	})
 
 	st.Run(idl.Substep_copy_master, func(streams step.OutStreams) error {
@@ -114,7 +114,7 @@ the master.`
 	})
 
 	st.Run(idl.Substep_upgrade_primaries, func(streams step.OutStreams) error {
-		return UpgradePrimaries(s.agentConns, s.BackupDirs.AgentHostsToBackupDir, req.GetPgUpgradeVerbose(), req.GetSkipPgUpgradeChecks(), s.Jobs, s.Source, s.Intermediate, idl.PgOptions_upgrade, s.Mode, pgUpgradeTimestamp)
+		return UpgradePrimaries(s.agentConns, s.BackupDirs.AgentHostsToBackupDir, req.GetPgUpgradeVerbose(), req.GetSkipPgUpgradeChecks(), req.GetJobs(), s.Source, s.Intermediate, idl.PgOptions_upgrade, s.Mode, pgUpgradeTimestamp)
 	})
 
 	st.AlwaysRun(idl.Substep_start_target_cluster, func(streams step.OutStreams) error {

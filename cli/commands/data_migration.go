@@ -59,7 +59,6 @@ func dataMigrationApply() *cobra.Command {
 	var port int
 	var inputDir string
 	var phase string
-	var jobs uint
 
 	logDir, err := utils.GetLogDir()
 	if err != nil {
@@ -94,7 +93,6 @@ func dataMigrationApply() *cobra.Command {
 	dataMigrationExecutor.Flags().IntVar(&port, "port", 0, "master port for Greenplum cluster")
 	dataMigrationExecutor.Flags().StringVar(&inputDir, "input-dir", inputDir, "path to the generated data migration SQL files. Defaults to $HOME/gpAdminLogs/gpupgrade/data-migration-scripts")
 	dataMigrationExecutor.Flags().StringVar(&phase, "phase", "", `data migration phase. Either "pre-initialize", "post-finalize", "post-revert", or "stats".`)
-	dataMigrationExecutor.Flags().UintVar(&jobs, "jobs", 4, "number of jobs to run for steps that can run in parallel. Defaults to 4.")
 
 	return addHelpToCommand(dataMigrationExecutor, applyHelp)
 }

@@ -4,6 +4,7 @@
 package upgrade
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os/exec"
@@ -48,7 +49,10 @@ func Run(stdout, stderr io.Writer, opts *idl.PgOptions) error {
 		"--old-port", opts.GetOldPort(),
 		"--new-port", opts.GetNewPort(),
 		"--mode", opts.GetPgUpgradeMode().String(),
-		"--jobs", opts.GetJobs(),
+	}
+
+	if opts.GetJobs() > 0 {
+		args = append(args, "--jobs", fmt.Sprintf("%d", opts.GetJobs()))
 	}
 
 	// TODO: Update this to at least 7.2.0 once it's released

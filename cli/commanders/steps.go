@@ -83,8 +83,8 @@ func Execute(client idl.CliToHubClient, request *idl.ExecuteRequest, verbose boo
 	return executeResponse, nil
 }
 
-func Finalize(client idl.CliToHubClient, verbose bool) (*idl.FinalizeResponse, error) {
-	stream, err := client.Finalize(context.Background(), &idl.FinalizeRequest{})
+func Finalize(client idl.CliToHubClient, request *idl.FinalizeRequest, verbose bool) (*idl.FinalizeResponse, error) {
+	stream, err := client.Finalize(context.Background(), request)
 	if err != nil {
 		return &idl.FinalizeResponse{}, err
 	}

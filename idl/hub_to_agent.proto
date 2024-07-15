@@ -42,7 +42,7 @@ message PgOptions {
   string backupDir = 1;
   bool pgUpgradeVerbose = 2;
   bool skipPgUpgradeChecks = 3;
-  string jobs = 4;
+  int32 jobs = 4;
   Action action = 5;
   string role = 6;
   int32 contentID = 7;

@@ -25,15 +25,19 @@ message InitializeCreateClusterRequest {
   string dynamicLibraryPath = 1;
   bool pgUpgradeVerbose = 2;
   bool skipPgUpgradeChecks = 3;
+  int32 jobs = 4;
 }
 
 message ExecuteRequest {
   bool pgUpgradeVerbose = 1;
   bool skipPgUpgradeChecks = 2;
   string parentBackupDirs = 3;
+  int32 jobs = 4;
 }
 
-message FinalizeRequest {}
+message FinalizeRequest {
+  int32 jobs = 1;
+}
 
 message RevertRequest {}
 

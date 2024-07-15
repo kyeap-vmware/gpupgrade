@@ -43,7 +43,7 @@ func initialize() *cobra.Command {
 	var pgUpgradeVerbose bool
 	var skipVersionCheck bool
 	var skipPgUpgradeChecks bool
-	var jobs uint
+	var jobs int32
 	var ports string
 	var mode string
 	var useHbaHostnames bool
@@ -198,7 +198,7 @@ func initialize() *cobra.Command {
 					db, hubPort, agentPort,
 					filepath.Clean(sourceGPHome),
 					filepath.Clean(targetGPHome),
-					mode, useHbaHostnames, parsedPorts, jobs,
+					mode, useHbaHostnames, parsedPorts,
 					parentBackupDirs,
 				)
 				if err != nil {
@@ -301,7 +301,7 @@ func initialize() *cobra.Command {
 	subInit.Flags().BoolVar(&pgUpgradeVerbose, "pg-upgrade-verbose", false, "execute pg_upgrade with --verbose")
 	subInit.Flags().BoolVar(&skipPgUpgradeChecks, "skip-pg-upgrade-checks", false, "skips pg_upgrade checks")
 	subInit.Flags().MarkHidden("skip-pg-upgrade-checks") //nolint
-	subInit.Flags().UintVar(&jobs, "jobs", 4, "number of jobs to run for steps that can run in parallel. Defaults to 4.")
+	subInit.Flags().Int32Var(&jobs, "jobs", 4, "number of jobs to run for steps that can run in parallel. Defaults to 4.")
 	subInit.Flags().StringVarP(&file, "file", "f", "", "the configuration file to use")
 	subInit.Flags().BoolVar(&nonInteractive, "non-interactive", false, "do not prompt for confirmation to proceed")
 	subInit.Flags().MarkHidden("non-interactive") //nolint

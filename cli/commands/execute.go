@@ -27,6 +27,7 @@ func execute() *cobra.Command {
 	var skipPgUpgradeChecks bool
 	var nonInteractive bool
 	var parentBackupDirs string
+	var jobs int32
 
 	cmd := &cobra.Command{
 		Use:   "execute",
@@ -80,6 +81,7 @@ func execute() *cobra.Command {
 					PgUpgradeVerbose:    pgUpgradeVerbose,
 					SkipPgUpgradeChecks: skipPgUpgradeChecks,
 					ParentBackupDirs:    parentBackupDirs,
+					Jobs:                jobs,
 				}
 				response, err = commanders.Execute(client, request, verbose)
 				if err != nil {
@@ -105,6 +107,7 @@ func execute() *cobra.Command {
 	cmd.Flags().BoolVar(&pgUpgradeVerbose, "pg-upgrade-verbose", false, "execute pg_upgrade with --verbose")
 	cmd.Flags().BoolVar(&skipPgUpgradeChecks, "skip-pg-upgrade-checks", false, "skips pg_upgrade checks")
 	cmd.Flags().MarkHidden("skip-pg-upgrade-checks") //nolint
+	cmd.Flags().Int32Var(&jobs, "jobs", 4, "number of jobs to run for steps that can run in parallel. Defaults to 4.")
 	cmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "do not prompt for confirmation to proceed")
 	cmd.Flags().MarkHidden("non-interactive") //nolint
 	cmd.Flags().StringVar(&parentBackupDirs, "parent-backup-dirs", "", "parent directories on each host to internally store the backup of the coordinator data directory and user defined coordinator tablespaces."+
