@@ -68,6 +68,8 @@ func init() {
 	finalizeSubsteps = substeps.Substeps{
 		idl.Substep_ensure_gpupgrade_agents_are_running,
 		idl.Substep_check_active_connections_on_target_cluster,
+		idl.Substep_finalize_reindex,
+		idl.Substep_finalize_rebuild_tsvector,
 		idl.Substep_upgrade_mirrors,
 		idl.Substep_upgrade_standby,
 		idl.Substep_wait_for_cluster_to_be_ready_after_adding_mirrors_and_standby,
@@ -95,6 +97,7 @@ func init() {
 		idl.Substep_restore_pgcontrol,
 		idl.Substep_restore_source_cluster,
 		idl.Substep_start_source_cluster,
+		idl.Substep_execute_revert_reset_invalid_indexes,
 		idl.Substep_recoverseg_source_cluster,
 		idl.Substep_archive_log_directories,
 		idl.Substep_delete_backupdir,

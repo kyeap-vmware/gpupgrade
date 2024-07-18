@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/greenplum-db/gpupgrade/greenplum"
 	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/step"
 	"github.com/greenplum-db/gpupgrade/upgrade"
@@ -35,6 +36,17 @@ func (s *Server) Finalize(req *idl.FinalizeRequest, stream idl.CliToHub_Finalize
 
 	st.AlwaysRun(idl.Substep_check_active_connections_on_target_cluster, func(streams step.OutStreams) error {
 		return s.Intermediate.CheckActiveConnections(streams)
+	})
+
+
+	// Execute the reindex and rebuild tsvector substeps prior to
+	// upgrading the mirrors to reduce WAL overhead
+	st.Run(idl.Substep_finalize_reindex, func(streams step.OutStreams) error {
+		return greenplum.ReindexInvalidIndexes(s.Intermediate, s.Jobs)
+	})
+
+	st.Run(idl.Substep_finalize_rebuild_tsvector, func(streams step.OutStreams) error {
+		return greenplum.RebuildTSVectorTables(s.Intermediate, s.Jobs)
 	})
 
 	st.RunConditionally(idl.Substep_upgrade_mirrors, s.Source.HasMirrors() && s.Mode == idl.Mode_link, func(streams step.OutStreams) error {

@@ -113,9 +113,6 @@ time ssh -n cdw "
 if ! is_GPDB5 ${GPHOME_TARGET}; then
     echo "Configuring GUCs before dumping the target cluster..."
     configure_gpdb_gucs ${GPHOME_TARGET}
-
-    echo "Reindexing all databases to enable bitmap indexes which were marked invalid during the upgrade...."
-    reindex_all_dbs ${GPHOME_TARGET}
 fi
 
 echo "Dumping the target cluster..."

@@ -76,4 +76,7 @@ var SubstepDescriptions = map[idl.Substep]substepText{
 	idl.Substep_verify_gpupgrade_is_installed_across_all_hosts:                substepText{"Verifying gpupgrade is installed across all hosts...", "Verify gpupgrade is installed across all hosts"},
 	idl.Substep_initialize_wait_for_cluster_to_be_ready:                       substepText{"Waiting for cluster to be ready...", "Wait for cluster to be ready"},
 	idl.Substep_wait_for_cluster_to_be_ready_before_upgrade_master:            substepText{"Waiting for cluster to be ready...", "Wait for cluster to be ready"},
+	idl.Substep_execute_revert_reset_invalid_indexes:                          substepText{"Resetting invalidated indexes...", "Reset invalidated indexes"},
+	idl.Substep_finalize_reindex:                                              substepText{"Reindexing invalidated indexes...", "Reindex invalidated indexes"},
+	idl.Substep_finalize_rebuild_tsvector:                                     substepText{"Rebuilding tsvector tables...", "Rebuild tsvector tables"},
 }

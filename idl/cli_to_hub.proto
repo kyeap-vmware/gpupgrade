@@ -110,6 +110,9 @@ enum Substep {
   verify_gpupgrade_is_installed_across_all_hosts = 47;
   initialize_wait_for_cluster_to_be_ready = 48;
   wait_for_cluster_to_be_ready_before_upgrade_master = 49;
+  execute_revert_reset_invalid_indexes = 50;
+  finalize_reindex = 51;
+  finalize_rebuild_tsvector = 52;
 }
 
 enum Status {

@@ -496,3 +496,33 @@ func GetCoordinatorSegPrefix(datadir string) (string, error) {
 	}
 	return segPrefix, nil
 }
+
+func (c *Cluster) GetDatabases() ([]string, error) {
+	db, err := sql.Open("pgx", c.Connection())
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if cErr := db.Close(); cErr != nil {
+			err = errorlist.Append(err, cErr)
+		}
+	}()
+
+	rows, err := db.Query(`SELECT datname FROM pg_database WHERE datname != 'template0';`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	
+	var databases []string
+	for rows.Next() {
+		var database string
+		err = rows.Scan(&database)
+		if err != nil {
+			return nil, xerrors.Errorf("pg_database: %w", err)
+		}
+		databases = append(databases, database)
+	}
+
+	return databases, nil
+}

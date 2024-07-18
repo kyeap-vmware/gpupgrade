@@ -31,17 +31,6 @@ configure_gpdb_gucs() {
 "
 }
 
-reindex_all_dbs() {
-    local gphome=$1
-    ssh -n cdw "
-        set -eux -o pipefail
-
-        source ${gphome}/greenplum_path.sh
-        export MASTER_DATA_DIRECTORY=/data/gpdata/coordinator/gpseg-1
-        reindexdb -a
-"
-}
-
 dump_sql() {
     local port=$1
     local dumpfile=$2

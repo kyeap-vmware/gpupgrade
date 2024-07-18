@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"sync"
 
 	"github.com/blang/semver/v4"
 	"github.com/greenplum-db/gpupgrade/utils/errorlist"
@@ -197,6 +198,49 @@ func (p *Pool) Jobs() uint {
 
 func (p *Pool) ConnString() string {
 	return p.connString
+}
+
+func ExecuteCommands(cluster *Cluster, database string, commands []string, jobs uint) error {
+	var errs error
+
+	pool, err := NewPoolerFunc(Port(cluster.CoordinatorPort()), Database(database), Jobs(jobs))
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+
+	numCommands := len(commands)
+	errChan := make(chan error, numCommands)
+	commandsChan := make(chan string, numCommands)
+	jobs = min(pool.Jobs(), uint(numCommands))
+
+	var wg sync.WaitGroup
+	for j := 0; j < int(jobs); j++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for command := range commandsChan {
+				execErr := pool.Exec(command)
+				if execErr != nil {
+					errChan <- fmt.Errorf("URI: %s: executing statement %q: %w", pool.ConnString(), command, execErr)
+				}
+			}
+		}()
+	}
+
+	for _, command := range commands {
+		commandsChan <- command
+	}
+	close(commandsChan)
+
+	wg.Wait()
+	close(errChan)
+
+	for err := range errChan {
+		errs = errorlist.Append(errs, err)
+	}
+
+	return errs
 }
 
 func (c *Cluster) Connection(options ...Option) string {
