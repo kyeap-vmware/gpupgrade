@@ -40,6 +40,7 @@ https://github.com/greenplum-db/gpdb/blob/6X_STABLE/contrib/pg_upgrade/IMPLEMENT
 1. Copy or link files (relfilenodes) to new cluster
 1. Set new coordinator's frozenxid and minmxid
 1. Freeze new coordinator to make everything visible for segments
+1. Invalidate bpchar_pattern_ops, bitmap, and AO indexes
 
 ### \*\*\*gpupgrade: COPY coordinator to segments to bootstrap segment upgrade\*\*\*
 
@@ -48,7 +49,6 @@ https://github.com/greenplum-db/gpdb/blob/6X_STABLE/contrib/pg_upgrade/IMPLEMENT
 1. Freeze all new cluster rows to remove references to clog entries
 1. Copy control file settings to new cluster (clog, xlog, xid)
 1. Set coordinator's frozenxid and minmxid
-1. Invalidate Indexes again (bitmap indexes only? further explained why again later)
 1. Set coordinator's frozenxid and minmxid again
 1. Copy or link files (relfilenodes) to new cluster
 1. Reset system identifier
@@ -67,7 +67,6 @@ gpupgrade uses pg_upgrade in the following manner:
     1. Run pg_upgrade to upgrade the segments
 1. gpupgrade finalize
     1. execute data migration finalize scripts
-    1. regenerate indexes and stats?
 
 ## GPDB pre-upgrade checks
 GPDB adds additional checks during pre-upgrade to ensure the smooth gpupgrade
@@ -94,7 +93,7 @@ them.  To make migration as easy as possible for customers we may generate
 scripts that fix user objects to make them upgradable. Some scripts run during
 initialize. These will typically be scripts that fix objects or drop non
 upgradable objects. Some scripts will run during finalize step. These scripts
-may do things like recreate indexes which is faster after data is in the
+may do things like recreate unique constraints which is faster after data is in the
 database. We also generate revert scripts to revert objects back to their
 original structure if applicable and `gpupgrade revert` is run. As of today
 data migration scripts are generated in gpupgrade.
@@ -140,8 +139,6 @@ main
 │   │   └── UPDATE pg_class SET relminmxid
 │   ├── get_db_and_rel_infos(&new_cluster) // get relations
 │   └── uninstall_support_functions_from_new_cluster
-├── invalidate_indexes* (bitmap indexes)
-│   └── UPDATE pg_index SET indisvalid
 ├── transfer_all_new_tablespaces
 │   └── parallel_transfer_all_new_dbs
 │       └── transfer_all_new_dbs (currently serial)
@@ -154,9 +151,13 @@ main
 │   ├── UPDATE pg_database SET datfrozenxid, datminmxid
 │   ├── UPDATE pg_class SET relfrozenxid
 │   └── UPDATE pg_class SET relminmxid
-└── freeze_master_data*
-    ├── VACUUM FREEZE
-    └── VACUUM FREEZE pg_catalog.pg_database
+├── freeze_master_data*
+│   ├── VACUUM FREEZE
+|   └── VACUUM FREEZE pg_catalog.pg_database
+├── invalidate indexes
+    ├── invalidate bpchar_pattern_ops indexes
+    ├── invalidate bitmap indexes*
+    └── invalidate indexes on AO tables*
 
 * specific to GPDB
 ```
@@ -195,9 +196,6 @@ main
 ├── check_new_cluster
 │   ├── get_db_and_rel_infos(&new_cluster)
 │   │   ├── get_db_infos
-│   │   ├── reset_invalid_indexes* (in new_cluster)
-│   │   │    ├── UPDATE pg_catalog.pg_index // enable bpchar_pattern_ops indexes excluding gin, hash, bitmap
-│   │   │    └── UPDATE pg_catalog.pg_index // enable bitmap indexes
 │   │   └── get_rel_infos // will get all relations restored by coordinator
 │   └── check_loadable_libraries
 ├── prepare_new_cluster
@@ -208,8 +206,6 @@ main
 │   ├── UPDATE pg_database SET datminmxid
 │   ├── UPDATE pg_class SET relfrozenxid
 │   └── UPDATE pg_class SET relminmxid
-├── invalidate_indexes* (bitmap indexes)
-│   └── UPDATE pg_index SET indisvalid
 ├── update_db_xids*
 │   ├── UPDATE pg_database SET datfrozenxid, datminmxid
 │   ├── UPDATE pg_class SET relfrozenxid
@@ -462,13 +458,12 @@ gpperfmon
 1. Developers must keep in mind that pg_upgrade is run twice during execute.
    This has performance impacts because coordinator and segments cannot upgrade at
    the same time.
-1. Indexes are marked invalid on the new coordinator which are then copied to
-   new segments. We must reset them temporarily on the new segment before we
-   query for all relations to make sure they are recognized when getting a list
-   of relations for relation matching that happens in gen_db_file_maps.<br>
-   **Invalidated indexes**: bitmap, gin, hash, bpchar_pattern_ops.<br>
-   **Dropped indexes**: partition table indexes
-1. One good thing about this method is we know oids will the consistent across
+1. **Invalidated indexes**: bitmap, bpchar_pattern_ops, and indexes on AO tables
+   are marked invalid on the new coordinator which are then copied to
+   new segments. The relfiles for these indexes are excluded during relfilenode
+   transfer. These indexes must be reindexed on the new cluster before they can
+   be used, which is handled during gpupgrade finalize.
+2. One good thing about this method is we know oids will the consistent across
    the cluster, which is needed for a GPDB cluster to function.
 
 
@@ -527,21 +522,7 @@ This fix is introduced in commit
 A better fix may be to exclude all *_fsm and *_vm files when rsycing from
 coordinator to segments.
 
-##### 3. reset_invalid_indexes (in new_cluster)
-This is a workaround to fix a side effect from copy MDD step. In Greenplum,
-after collecting the relation information, bpchar_pattern_ops and bitmap
-indexes indexes are marked as invalid. The same catalog is copied to the
-segment, and when information is collected about the objects, invalid indexes
-are not considered from the new segment. But the segment should be reset to the
-original state where the indexes were valid else upgrade will report failure
-indicating that there are missing index objects in the source segment and the
-target segment.
-
-Done in commit
-[536e786095](https://github.com/greenplum-db/gpdb/commit/536e7860956ffd7795af9911084dc2cb7ae8c5c0)
-
-
-##### 4. pg_aoseg values from coordinator ends up on segments.
+##### 3. pg_aoseg values from coordinator ends up on segments.
 Before commit
 [466df4e26a](https://github.com/greenplum-db/gpdb/commit/466df4e26a) every
 pg_aoseg table was TRUNCATED before rebuilding it.
@@ -553,7 +534,7 @@ overwrite the coordinator's relfilenodes. Maybe there are edge cases where
 tuples exist on coordinator but not on segments?
 
 
-##### 5. Reset system identifier
+##### 4. Reset system identifier
 ```
 /*
  * Called for GPDB segments only -- since we have copied the master's
@@ -576,8 +557,6 @@ pg_upgrade on segments
 │   ├── UPDATE pg_database SET datminmxid
 │   ├── UPDATE pg_class SET relfrozenxid
 │   └── UPDATE pg_class SET relminmxid
-├── invalidate_indexes* (bitmap indexes)
-│   └── UPDATE pg_index SET indisvalid
 ├── update_db_xids*
 │   ├── UPDATE pg_database SET datfrozenxid, datminmxid
 │   ├── UPDATE pg_class SET relfrozenxid
@@ -722,12 +701,7 @@ These two functions look almost exactly identical and do the same things.
 the team previously wanted to keep greenplum and postgres code separate, but
 this looks unnecessary.
 
-### 8. How do hash and gin indexes pass relation matching on segments?
-It looks like they're left valid on the old cluster. But then they're disabled on the new cluster.
-Reset indexes will enable bitmap and then bpchar_pattern_ops indexes excluding gin, hash, bitmap.
-Why do gin and hash indexes not need resetting?
-
-### 9. Disable segment compatibility checks.
+### 8. Disable segment compatibility checks.
 Why do we run segment compatibility checks? It can potential cause upgrade
 failure because it happens after coordinator upgrade is complete. There doesn't
 seems to be a good reason to run the segment checks in our current gpupgrade
