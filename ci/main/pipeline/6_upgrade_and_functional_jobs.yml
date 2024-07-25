@@ -31,10 +31,8 @@
         - get: sqldump
           {{- if .TestExtensions }}
           resource: postgis_2.1.5_dump
-          {{- else if eq (.Source) "5" }}
-          resource: icw_planner_gpdb5_centos6_dump
           {{- else }}
-          resource: icw_gporca_gpdb6_centos6_dump
+          resource: icw_planner_gpdb5_centos6_dump
           {{- end }}
         {{- end }}
         {{- if .TestExtensions }}

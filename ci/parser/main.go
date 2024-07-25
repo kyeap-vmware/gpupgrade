@@ -55,6 +55,9 @@ func init() {
 		if !majorVersions.contains(version.Source) {
 			majorVersions = append(majorVersions, version.Source)
 		}
+		if !majorVersions.contains(version.Target) {
+			majorVersions = append(majorVersions, version.Target)
+		}
 
 		gpdbVersion := GPDBVersion{
 			Version:          version,
@@ -78,7 +81,7 @@ func init() {
 
 		// To avoid too many duplicate acceptanceJobs have only one for different
 		// major versions (ie: SpecialJobs), and only one for same major
-		// versions (ie: 6-to-6 or 7-to-7).
+		// versions (ie: 7-to-7).
 		if version.SpecialJobs || (version.Source == version.Target) {
 			acceptanceJobs = append(acceptanceJobs, AcceptanceJob{Job{Version: version}})
 			multihostAcceptanceJobs = append(multihostAcceptanceJobs, MultihostAcceptanceJob{Job{Version: version}})
@@ -215,13 +218,6 @@ func setJobs() {
 				Platform:        "centos7",
 				RpmVersion:      "rhel7",
 				SpecialJobs:     true, // To avoid exploding the test matrix set specialJobs for 5->6 for only a single OS.
-				AppendImageName: "-golang",
-			},
-			{
-				Source:          "6",
-				Target:          "6",
-				Platform:        "centos7", // To avoid exploding the test matrix have 6->6 for only a single OS.
-				RpmVersion:      "rhel7",
 				AppendImageName: "-golang",
 			},
 		}
