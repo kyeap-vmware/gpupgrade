@@ -183,7 +183,7 @@ endif
 WORKSPACE ?= ~/workspace
 BRANCH_NAME ?= $(shell git rev-parse --abbrev-ref HEAD | tr '/' ':')
 export BRANCH_NAME
-PIPELINE_NAME ?= gpupgrade:${BRANCH_NAME}
+PIPELINE_NAME ?= gpupgrade-${BRANCH_NAME}
 FLY_TARGET ?= cm
 
 # YAML templating is used to switch between prod and dev pipelines. The
