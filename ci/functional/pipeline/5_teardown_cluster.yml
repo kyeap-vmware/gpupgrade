@@ -37,9 +37,6 @@
     ensure:
       do:
         - <<: *ccp_destroy
-    on_failure:
-      do:
-        - <<: *slack_alert
 {{end -}}
 
 {{range .FunctionalJobs}}
@@ -78,7 +75,4 @@
     ensure:
       do:
         - <<: *ccp_destroy
-    on_failure:
-      do:
-        - <<: *slack_alert
 {{end -}}

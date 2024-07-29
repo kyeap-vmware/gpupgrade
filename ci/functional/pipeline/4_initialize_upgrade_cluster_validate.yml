@@ -56,9 +56,6 @@
                               --temp-port-range 6020-6040 \
                               --disk-free-ratio 0
                 "
-    on_failure:
-      do:
-        - <<: *slack_alert
 {{end -}}
 
 {{range .FunctionalJobs}}
@@ -106,9 +103,6 @@
         params:
           FILTER_DIFF: 0
           MODE: {{ .Mode }}
-    on_failure:
-      do:
-        - <<: *slack_alert
 {{end -}}
 
 {{range .FunctionalJobs}}
@@ -177,7 +171,4 @@
                 validate_mirrors_and_standby /usr/local/greenplum-db-target cdw 5432
       {{- end -}}
       {{- end }}
-    on_failure:
-      do:
-        - <<: *slack_alert
 {{end -}}

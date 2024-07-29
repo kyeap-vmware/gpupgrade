@@ -20,9 +20,6 @@
           - name: gpdb_src_source
         run:
           path: gpupgrade_src/ci/main/scripts/unit-and-integration-tests.bash
-  on_failure:
-    do:
-      - <<: *slack_alert
 {{- end }}
 
 - name: {{.Name}}
@@ -56,7 +53,4 @@
       params:
         SOURCE_PACKAGE: greenplum-db-{{.Source}}
         TARGET_PACKAGE: greenplum-db-{{.Target}}
-  on_failure:
-    do:
-      - <<: *slack_alert
 {{end -}}

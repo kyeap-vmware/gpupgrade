@@ -30,9 +30,6 @@
             {{- range .MultihostAcceptanceJobs}}
             - {{ .Name }}
             {{- end}}
-        - get: oss_rpm
-          passed:
-            - build
     - task: add-semver
       config:
         platform: linux
@@ -43,20 +40,11 @@
             tag: 1.16
         inputs:
           - name: gpupgrade_src
-          - name: oss_rpm
           - name: enterprise_rpm
         outputs:
-          - name: renamed_oss_rpm
           - name: renamed_enterprise_rpm
         run:
           path: gpupgrade_src/ci/main/scripts/add-semver.bash
-    - in_parallel:
-        - put: oss_rc_rpm
-          params:
-            file: renamed_oss_rpm/gpupgrade-*.rpm
-        - put: enterprise_rc_rpm
-          params:
-            file: renamed_enterprise_rpm/gpupgrade-*.rpm
-  on_failure:
-    do:
-      - <<: *slack_alert
+    - put: enterprise_rc_rpm
+      params:
+        file: renamed_enterprise_rpm/gpupgrade-*.rpm

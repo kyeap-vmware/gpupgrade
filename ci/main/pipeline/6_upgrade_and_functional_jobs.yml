@@ -286,7 +286,4 @@
   on_success:
     do:
       - <<: *ccp_destroy
-  on_failure:
-    do:
-      - <<: *slack_alert
 {{end -}}

@@ -52,10 +52,6 @@
                     unxz --threads $(nproc) /tmp/dump.sql.xz
                     PGOPTIONS='--client-min-messages=warning' psql -v ON_ERROR_STOP=0 --quiet --dbname postgres -f /tmp/dump.sql
                 "
-    on_failure:
-      do:
-        - <<: *slack_alert
-{{end -}}
 
 {{range .FunctionalJobs}}
   - name: data-migration-scripts
@@ -118,7 +114,4 @@
                     echo 'Outputting stats...'
                     cat /home/gpadmin/gpAdminLogs/gpupgrade/apply_stats.log
                 "
-    on_failure:
-      do:
-        - <<: *slack_alert
 {{end -}}

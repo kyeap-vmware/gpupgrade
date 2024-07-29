@@ -120,4 +120,3 @@ jobs:
     on_failure:
       do:
         - <<: *ccp_destroy
-        - <<: *slack_alert

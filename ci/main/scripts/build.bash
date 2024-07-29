@@ -13,10 +13,6 @@ cd gpupgrade_src
 export GOFLAGS="-mod=readonly" # do not update dependencies during build
 git fetch git@github.com:greenplum-db/gpdb.git --tags
 
-make oss-rpm
-ci/main/scripts/verify-rpm.bash gpupgrade-*.rpm "Open Source"
-mv gpupgrade-*.rpm ../built_oss
-
 make enterprise-rpm
 ci/main/scripts/verify-rpm.bash gpupgrade-*.rpm "Enterprise"
 mv gpupgrade-*.rpm ../built_enterprise

@@ -23,11 +23,9 @@ git_describe=$(git -C ./gpupgrade_src describe --tags)
 IFS='-' read -r -a parts <<< "$git_describe"
 if (( ${#parts[@]} == 1 )); then
     SEMVER="${parts[0]}"
-    cp oss_rpm/gpupgrade-*.rpm renamed_oss_rpm/"$(rename_rpm oss)"
     cp enterprise_rpm/gpupgrade-*.rpm renamed_enterprise_rpm/"$(rename_rpm enterprise)"
 elif (( ${#parts[@]} == 3 )); then
     SEMVER="${parts[0]}+dev.${parts[1]}.${parts[2]}"
-    cp oss_rpm/gpupgrade-*.rpm renamed_oss_rpm/"$(rename_rpm oss)"
     cp enterprise_rpm/gpupgrade-*.rpm renamed_enterprise_rpm/"$(rename_rpm enterprise)"
 else
     echo "git describe '${git_describe}' was split into ${#parts[@]} parts [${parts[*]}]. Expected 1 or 3."

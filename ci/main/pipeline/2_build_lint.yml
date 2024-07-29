@@ -14,22 +14,14 @@ jobs:
         inputs:
           - name: gpupgrade_src
         outputs:
-          - name: built_oss
           - name: built_enterprise
         params:
                 GIT_SSH_KEY: ((server/gpdb-deploy-key))
         run:
           path: gpupgrade_src/ci/main/scripts/build.bash
-    - in_parallel:
-        - put: oss_rpm
-          params:
-            file: built_oss/gpupgrade-*.rpm
-        - put: enterprise_rpm
-          params:
-            file: built_enterprise/gpupgrade-*.rpm
-  on_failure:
-    do:
-      - <<: *slack_alert
+    - put: enterprise_rpm
+      params:
+        file: built_enterprise/gpupgrade-*.rpm
 
 - name: lint
   plan:
@@ -53,6 +45,3 @@ jobs:
 
               cd gpupgrade_src
               make lint
-  on_failure:
-    do:
-      - <<: *slack_alert

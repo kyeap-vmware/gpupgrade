@@ -8,12 +8,6 @@ resource_types:
   source:
     repository: frodenas/gcs-resource
 
-- name: slack-notification
-  type: registry-image
-  source:
-    repository: cfcommunity/slack-notification-resource
-    tag: latest
-
 - name: terraform
   type: registry-image
   source:
@@ -97,13 +91,6 @@ resources:
       regexp: minor/release-candidates/gpdb{{.GPDBVersion}}/greenplum-db-server-({{escapeVersion .GPDBVersion}}.*)-{{.RpmVersion}}-x86_64.rpm
 {{end}}
 
-- name: oss_rpm
-  type: gcs
-  source:
-    bucket: gpupgrade-intermediates
-    json_key: ((upgrade/cm-gcs-service-account-key))
-    versioned_file: oss/gpupgrade-intermediate.el7.x86_64.rpm
-
 - name: enterprise_rpm
   type: gcs
   source:
@@ -111,24 +98,12 @@ resources:
     json_key: ((upgrade/cm-gcs-service-account-key))
     versioned_file: enterprise/gpupgrade-intermediate.el7.x86_64.rpm
 
-- name: oss_rc_rpm
-  type: gcs
-  source:
-    bucket: gpupgrade-artifacts-{{.JobType}}
-    json_key: ((upgrade/cm-gcs-service-account-key))
-    regexp: release-candidates/oss/gpupgrade-(.*).rpm
-
 - name: enterprise_rc_rpm
   type: gcs
   source:
     bucket: gpupgrade-artifacts-{{.JobType}}
     json_key: ((upgrade/cm-gcs-service-account-key))
     regexp: release-candidates/enterprise/gpupgrade-(.*).rpm
-
-- name: slack-alert
-  type: slack-notification
-  source:
-    url: ((upgrade/{{.JobType}}/cm-slack-webhook-url))
 
 - name: ccp_src
   type: git
@@ -314,12 +289,6 @@ anchors:
         AWS_DEFAULT_REGION: us-west-2
         BUCKET_PATH: clusters-google/
         BUCKET_NAME: gpdb5-pipeline-dynamic-terraform
-
-  - &slack_alert
-    put: slack-alert
-    params:
-      text: |
-        Hey team, <$ATC_EXTERNAL_URL/teams/$BUILD_TEAM_NAME/pipelines/$BUILD_PIPELINE_NAME/jobs/$BUILD_JOB_NAME/builds/$BUILD_NAME|gpupgrade/$BUILD_JOB_NAME> failed.
 
 groups:
   - name: all
