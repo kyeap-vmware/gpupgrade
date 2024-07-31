@@ -274,6 +274,14 @@ func AnalyzeCluster(target *Cluster, jobs int32) error {
 }
 
 func AnalyzeDatabase(target *Cluster, database string, jobs int32) error {
+	// 6 > 7 FIXME: The analyze query needs to be adapted for 7x. The GUC
+	// optimizer_analyze_enable_merge_of_leaf_stats is also removed in 7x.
+	// Evaluate if guc is still needed. Temporary disable to get pg_upgrade
+	// upgradable testing working.
+	if target.Version.Major != 6 {
+		return nil
+	}
+
 	var err error
 	var dataTableCmds []string
 	var rootPartitionCmds []string
