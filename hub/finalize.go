@@ -38,14 +38,13 @@ func (s *Server) Finalize(req *idl.FinalizeRequest, stream idl.CliToHub_Finalize
 		return s.Intermediate.CheckActiveConnections(streams)
 	})
 
-
 	// Execute the reindex and rebuild tsvector substeps prior to
 	// upgrading the mirrors to reduce WAL overhead
-	st.Run(idl.Substep_finalize_reindex, func(streams step.OutStreams) error {
+	st.RunConditionally(idl.Substep_finalize_reindex, s.Target.Version.Major == 6, func(streams step.OutStreams) error {
 		return greenplum.ReindexInvalidIndexes(s.Intermediate, req.GetJobs())
 	})
 
-	st.Run(idl.Substep_finalize_rebuild_tsvector, func(streams step.OutStreams) error {
+	st.RunConditionally(idl.Substep_finalize_rebuild_tsvector, s.Target.Version.Major == 6, func(streams step.OutStreams) error {
 		return greenplum.RebuildTSVectorTables(s.Intermediate, req.GetJobs())
 	})
 
