@@ -230,12 +230,6 @@ func setJobs() {
 				RpmVersion:  "el8",
 				SpecialJobs: true,
 			},
-			{
-				Source:     "7",
-				Target:     "7",
-				Platform:   "rocky8",
-				RpmVersion: "el8",
-			},
 		}
 	} else {
 		log.Fatalf("unknown pipeline version")

@@ -228,7 +228,7 @@ pipeline7:
 		ci/main/pipeline/6_upgrade_and_functional_jobs.yml \
 		ci/main/pipeline/7_publish_rc.yml > ci/main/generated/template.yml
 	PIPELINE_VERSION="7" go generate ./ci/main
-	fly -t $(FLY_TARGET) set-pipeline -p 7-$(PIPELINE_NAME) \
+	fly -t $(FLY_TARGET) set-pipeline -p $(PIPELINE_NAME)-7 \
 		-c ci/main/generated/pipeline.yml \
 		-v gpupgrade-git-remote=git@github.com:greenplum-db/gpupgrade.git \
 		-v gpupgrade-git-branch=$(BRANCH)

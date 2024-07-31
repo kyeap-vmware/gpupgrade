@@ -32,7 +32,12 @@
           {{- if .TestExtensions }}
           resource: postgis_2.1.5_dump
           {{- else }}
+          {{- if eq .Source "5" }}
           resource: icw_planner_gpdb5_centos6_dump
+          {{- end }}
+          {{- if eq .Source "6" }}
+          resource: icw_planner_gpdb6_rocky8_dump
+          {{- end }}
           {{- end }}
         {{- end }}
         {{- if .TestExtensions }}
