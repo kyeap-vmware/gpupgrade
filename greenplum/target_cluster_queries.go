@@ -286,17 +286,18 @@ func AnalyzeDatabase(target *Cluster, database string, jobs int32) error {
 	var dataTableCmds []string
 	var rootPartitionCmds []string
 
-	// Supress generating root stats for every partition
-	gucs := []string{"set optimizer_analyze_enable_merge_of_leaf_stats=off"}
-
-	pool, err := NewPoolerFunc(Port(target.CoordinatorPort()), Database(database), Gucs(gucs), Jobs(jobs))
+	db, err := sql.Open("pgx", target.Connection(Database(database)))
 	if err != nil {
 		return err
 	}
-	defer pool.Close()
+	defer func() {
+		if cErr := db.Close(); cErr != nil {
+			err = errorlist.Append(err, cErr)
+		}
+	}()
 
 	// Get the analyze commands for the data tables and root partitions
-	rows, err := pool.Query(analyzeDataTablesQuery)
+	rows, err := db.Query(analyzeDataTablesQuery)
 	if err != nil {
 		return err
 	}
@@ -311,7 +312,7 @@ func AnalyzeDatabase(target *Cluster, database string, jobs int32) error {
 		dataTableCmds = append(dataTableCmds, command)
 	}
 
-	rows, err = pool.Query(analyzeRootPartitionsQuery)
+	rows, err = db.Query(analyzeRootPartitionsQuery)
 	if err != nil {
 		return err
 	}
@@ -326,8 +327,9 @@ func AnalyzeDatabase(target *Cluster, database string, jobs int32) error {
 		rootPartitionCmds = append(rootPartitionCmds, command)
 	}
 
-	// Analyze the data tables first, then the root partitions
-	err = ExecuteCommands(target, database, dataTableCmds, jobs)
+	// Analyze the data tables first, then the root partitions.
+	// Suppress generating root stats for every partition.
+	err = ExecuteCommands(target, database, dataTableCmds, jobs, "set optimizer_analyze_enable_merge_of_leaf_stats=off;")
 	if err != nil {
 		return err
 	}
