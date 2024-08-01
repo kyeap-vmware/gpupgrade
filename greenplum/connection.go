@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"strings"
 	"sync"
 
 	"github.com/blang/semver/v4"
@@ -98,8 +99,12 @@ func NewPooler(options ...Option) (Pooler, error) {
 
 	// Add any GUC values for connections in the pool
 	for _, guc := range opts.gucs {
+    if !strings.HasSuffix(guc, ";") {
+			guc += ";"
+	}
 		setGucsQuery += guc + "\n"
 	}
+
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		_, err := conn.Exec(ctx, setGucsQuery)
 		return err
