@@ -6,6 +6,7 @@ package commands
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -109,7 +110,7 @@ If you postpone creating statistics then after the upgrade run "vacuumdb --all -
 					}
 				}
 
-				return greenplum.AnalyzeCluster(target, jobs)
+				return greenplum.AnalyzeCluster(target, jobs, os.Stdout)
 			})
 
 			st.Run(idl.Substep_delete_master_statedir, func(streams step.OutStreams) error {

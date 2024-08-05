@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pkg/errors"
+	"github.com/vbauerster/mpb/v8"
 )
 
 var NewPoolerFunc = NewPooler
@@ -205,7 +206,7 @@ func (p *Pool) ConnString() string {
 	return p.connString
 }
 
-func ExecuteCommands(cluster *Cluster, database string, commands []string, jobs int32, gucs... string) error {
+func ExecuteCommands(cluster *Cluster, database string, commands []string, jobs int32, bar *mpb.Bar, gucs... string) error {
 	var errs error
 
 	pool, err := NewPoolerFunc(Port(cluster.CoordinatorPort()), Database(database), Gucs(gucs), Jobs(jobs))
@@ -228,6 +229,9 @@ func ExecuteCommands(cluster *Cluster, database string, commands []string, jobs 
 				execErr := pool.Exec(command)
 				if execErr != nil {
 					errChan <- fmt.Errorf("URI: %s: executing statement %q: %w", pool.ConnString(), command, execErr)
+				}
+				if bar != nil {
+					bar.Increment()
 				}
 			}
 		}()

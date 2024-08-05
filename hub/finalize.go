@@ -41,11 +41,11 @@ func (s *Server) Finalize(req *idl.FinalizeRequest, stream idl.CliToHub_Finalize
 	// Execute the reindex and rebuild tsvector substeps prior to
 	// upgrading the mirrors to reduce WAL overhead
 	st.RunConditionally(idl.Substep_finalize_reindex, s.Target.Version.Major == 6, func(streams step.OutStreams) error {
-		return greenplum.ReindexInvalidIndexes(s.Intermediate, req.GetJobs())
+		return greenplum.ReindexInvalidIndexes(s.Intermediate, req.GetJobs(), st.Streams().Stdout())
 	})
 
 	st.RunConditionally(idl.Substep_finalize_rebuild_tsvector, s.Target.Version.Major == 6, func(streams step.OutStreams) error {
-		return greenplum.RebuildTSVectorTables(s.Intermediate, req.GetJobs())
+		return greenplum.RebuildTSVectorTables(s.Intermediate, req.GetJobs(), st.Streams().Stdout())
 	})
 
 	st.RunConditionally(idl.Substep_upgrade_mirrors, s.Source.HasMirrors() && s.Mode == idl.Mode_link, func(streams step.OutStreams) error {

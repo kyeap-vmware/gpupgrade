@@ -6,8 +6,12 @@ package greenplum
 import (
 	"database/sql"
 	"fmt"
+	"io"
+	"log"
 
+	"github.com/greenplum-db/gpupgrade/utils"
 	"github.com/greenplum-db/gpupgrade/utils/errorlist"
+	"github.com/vbauerster/mpb/v8"
 	"golang.org/x/xerrors"
 )
 
@@ -56,7 +60,7 @@ WHERE p.paristemplate = false
 // old_8_3_invalidate_bpchar_pattern_ops_indexes
 // old_8_3_invalidate_ao_indexes
 // old_8_3_invalidate_bitmap_indexes
-func ReindexInvalidIndexes(target *Cluster, jobs int32) error {
+func ReindexInvalidIndexes(target *Cluster, jobs int32, output io.Writer) error {
 	var err error
 
 	if target.Version.Major != 6 {
@@ -68,17 +72,20 @@ func ReindexInvalidIndexes(target *Cluster, jobs int32) error {
 		return err
 	}
 
+	progressBar := mpb.New(mpb.WithOutput(output), mpb.WithAutoRefresh(), mpb.WithWidth(80))
+
 	for _, database := range databases {
-		err = ReindexDatabase(target, database, jobs)
+		err = ReindexDatabase(target, database, jobs, progressBar)
 		if err != nil {
 			return err
 		}
 	}
 
+	progressBar.Wait()
 	return nil
 }
 
-func ReindexDatabase(target *Cluster, database string, jobs int32) error {
+func ReindexDatabase(target *Cluster, database string, jobs int32, progressBar *mpb.Progress) error {
 	db, err := sql.Open("pgx", target.Connection(Database(database)))
 	if err != nil {
 		return err
@@ -94,12 +101,18 @@ func ReindexDatabase(target *Cluster, database string, jobs int32) error {
 		return err
 	}
 	if len(reindexCommands) == 0 {
+		log.Printf("No invalid indexes found in database %s", database)
 		return nil
 	}
-	err = ExecuteCommands(target, database, reindexCommands, jobs)
+
+	bar := utils.AddBar(progressBar, len(reindexCommands), fmt.Sprintf("Database: %s", database))
+		
+	err = ExecuteCommands(target, database, reindexCommands, jobs, bar)
 	if err != nil {
+		bar.Abort(false)
 		return err
 	}
+
 	return nil
 }
 
@@ -140,7 +153,7 @@ func getReindexCommands(db *sql.DB) ([]string, error) {
 
 // Rebuilds the tsvector tables in the cluster.
 // Refer to pg_upgrade:old_8_3_rebuild_tsvector_tables
-func RebuildTSVectorTables(target *Cluster, jobs int32) error {
+func RebuildTSVectorTables(target *Cluster, jobs int32, output io.Writer) error {
 	var err error
 
 	if target.Version.Major != 6 {
@@ -152,16 +165,20 @@ func RebuildTSVectorTables(target *Cluster, jobs int32) error {
 		return err
 	}
 
+	progressBar := utils.NewProgressBar(output)
+
 	for _, database := range databases {
-		err = RebuildTSVectorTablesForDatabase(target, database, jobs)
+		err = RebuildTSVectorTablesForDatabase(target, database, jobs, progressBar)
 		if err != nil {
 			return err
 		}
 	}
+
+	progressBar.Wait()
 	return nil
 }
 
-func RebuildTSVectorTablesForDatabase(target *Cluster, database string, jobs int32) error {
+func RebuildTSVectorTablesForDatabase(target *Cluster, database string, jobs int32, progressBar *mpb.Progress) error {
 	db, err := sql.Open("pgx", target.Connection(Database(database)))
 	if err != nil {
 		return err
@@ -177,12 +194,18 @@ func RebuildTSVectorTablesForDatabase(target *Cluster, database string, jobs int
 		return err
 	}
 	if len(tsVectorCommands) == 0 {
+		log.Printf("No tsvector columns found in database %s", database)
 		return nil
 	}
-	err = ExecuteCommands(target, database, tsVectorCommands, jobs)
+
+	bar := utils.AddBar(progressBar, len(tsVectorCommands), fmt.Sprintf("Database: %s", database))
+
+	err = ExecuteCommands(target, database, tsVectorCommands, jobs, bar)
 	if err != nil {
+		bar.Abort(false)
 		return err
 	}
+
 	return nil
 }
 
@@ -256,7 +279,7 @@ func getTSVectorCommands(db *sql.DB) ([]string, error) {
 }
 
 
-func AnalyzeCluster(target *Cluster, jobs int32) error {
+func AnalyzeCluster(target *Cluster, jobs int32, output io.Writer) error {
 	var err error
 
 	databases, err := target.GetDatabases()
@@ -264,16 +287,20 @@ func AnalyzeCluster(target *Cluster, jobs int32) error {
 		return err
 	}
 
+	progressBar := mpb.New(mpb.WithOutput(output), mpb.WithAutoRefresh(), mpb.WithWidth(80))
+
 	for _, database := range databases {
-		err := AnalyzeDatabase(target, database, jobs)
+		err := AnalyzeDatabase(target, database, jobs, progressBar)
 		if err != nil {
 			return err
 		}
 	}
+
+	progressBar.Wait()
 	return nil
 }
 
-func AnalyzeDatabase(target *Cluster, database string, jobs int32) error {
+func AnalyzeDatabase(target *Cluster, database string, jobs int32, progressBar *mpb.Progress) error {
 	// 6 > 7 FIXME: The analyze query needs to be adapted for 7x. The GUC
 	// optimizer_analyze_enable_merge_of_leaf_stats is also removed in 7x.
 	// Evaluate if guc is still needed. Temporary disable to get pg_upgrade
@@ -327,15 +354,19 @@ func AnalyzeDatabase(target *Cluster, database string, jobs int32) error {
 		rootPartitionCmds = append(rootPartitionCmds, command)
 	}
 
+	bar := utils.AddBar(progressBar, len(dataTableCmds) + len(rootPartitionCmds), fmt.Sprintf("Database: %s", database))
+
 	// Analyze the data tables first, then the root partitions.
 	// Suppress generating root stats for every partition.
-	err = ExecuteCommands(target, database, dataTableCmds, jobs, "set optimizer_analyze_enable_merge_of_leaf_stats=off;")
+	err = ExecuteCommands(target, database, dataTableCmds, jobs, bar, "set optimizer_analyze_enable_merge_of_leaf_stats=off;")
 	if err != nil {
+		bar.Abort(false)
 		return err
 	}
 
-	err = ExecuteCommands(target, database, rootPartitionCmds, jobs)
+	err = ExecuteCommands(target, database, rootPartitionCmds, jobs, bar)
 	if err != nil {
+		bar.Abort(false)
 		return err
 	}
 
