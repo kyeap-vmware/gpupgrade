@@ -31,6 +31,7 @@ import (
 var GPHOME_SOURCE string
 var GPHOME_TARGET string
 var PGPORT string
+var VERBOSE_TESTS bool
 
 const TARGET_PGPORT = "6020"
 
@@ -54,6 +55,8 @@ func init() {
 	GPHOME_SOURCE = testutils.MustGetEnv("GPHOME_SOURCE")
 	GPHOME_TARGET = testutils.MustGetEnv("GPHOME_TARGET")
 	PGPORT = testutils.MustGetEnv("PGPORT")
+
+	VERBOSE_TESTS = os.Getenv("VERBOSE_TESTS") == "true"
 }
 
 func MustGetRepoRoot(t *testing.T) string {
@@ -89,6 +92,10 @@ func Generate(t *testing.T, outputDir string) string {
 		t.Fatalf("unexpected err: %#v stderr %s", err, output)
 	}
 
+	if VERBOSE_TESTS {
+		fmt.Println(string(output))
+	}
+
 	return strings.TrimSpace(string(output))
 }
 
@@ -104,6 +111,10 @@ func Apply(t *testing.T, gphome string, port string, phase idl.Step, inputDir st
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("unexpected err: %#v stderr %s", err, output)
+	}
+
+	if VERBOSE_TESTS {
+		fmt.Println(string(output))
 	}
 
 	return strings.TrimSpace(string(output))
@@ -125,6 +136,10 @@ func Initialize_stopBeforeClusterCreation(t *testing.T) string {
 		t.Fatalf("unexpected err: %#v stderr %s", err, output)
 	}
 
+	if VERBOSE_TESTS {
+		fmt.Println(string(output))
+	}
+
 	return strings.TrimSpace(string(output))
 }
 
@@ -144,6 +159,10 @@ func Initialize(t *testing.T, mode idl.Mode) string {
 		t.Fatalf("unexpected err: %#v stderr %s", err, output)
 	}
 
+	if VERBOSE_TESTS {
+		fmt.Println(string(output))
+	}
+
 	return strings.TrimSpace(string(output))
 }
 
@@ -155,6 +174,10 @@ func Execute(t *testing.T) string {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("unexpected err: %#v stderr %s", err, output)
+	}
+
+	if VERBOSE_TESTS {
+		fmt.Println(string(output))
 	}
 
 	return strings.TrimSpace(string(output))
@@ -170,6 +193,10 @@ func Finalize(t *testing.T) string {
 		t.Fatalf("unexpected err: %#v stderr %s", err, output)
 	}
 
+	if VERBOSE_TESTS {
+		fmt.Println(string(output))
+	}
+
 	return strings.TrimSpace(string(output))
 }
 
@@ -181,6 +208,10 @@ func Revert(t *testing.T) string {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("unexpected err: %#v stderr %s", err, output)
+	}
+
+	if VERBOSE_TESTS {
+		fmt.Println(string(output))
 	}
 
 	return strings.TrimSpace(string(output))

@@ -117,6 +117,7 @@ substitutions used to perform a "smart" diff.
      ```
      FOCUS_TESTS="partition_index view_owner" go test -count=1 -v ./test/acceptance/pg_upgrade -run Test_PgUpgrade_Migratable_Tests
      ```
+   * **Print full output for each substep**: Set the environment variable `VERBOSE_TESTS=true`
 ### pg_upgrade: non-upgradeable tests (negative tests)
 
 The pg_upgrade non-upgradeable acceptance tests are negative tests. They assert
