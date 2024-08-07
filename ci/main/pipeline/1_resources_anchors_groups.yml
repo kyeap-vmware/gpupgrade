@@ -153,7 +153,7 @@ resources:
     json_key: ((concourse-gcs-resources-service-account-key))
     versioned_file: 5X_STABLE/icw_planner_centos6_dump/dump.sql.xz
 {{- end}}
-{{- if and (eq .GPDBVersion "6") -}}
+{{- if and (eq .GPDBVersion "6") (eq .Platform "rocky8") -}}
 - name: icw_planner_gpdb6_rocky8_dump
   type: gcs
   source:
@@ -161,7 +161,7 @@ resources:
     json_key: ((concourse-gcs-resources-service-account-key))
     versioned_file: 6X_STABLE/icw_planner_rocky8_dump/dump.sql.xz
 {{- end}}
-{{- end}}
+{{end}}
 
 # The postgis dump is a static file that was created by taking objects from the
 # postgis regression tests and "not" dropping the databases associated with
