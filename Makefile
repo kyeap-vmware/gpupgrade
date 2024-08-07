@@ -90,9 +90,6 @@ override BUILD_FLAGS += -ldflags "$(VERSION_LD_STR)"
 enterprise-tarball: RELEASE=Enterprise
 enterprise-tarball: build tarball
 
-oss-tarball: RELEASE=Open Source
-oss-tarball: build tarball
-
 TARBALL_NAME=gpupgrade.tar.gz
 
 tarball:
@@ -112,14 +109,9 @@ tarball:
 	rm -r tarball
 
 enterprise-rpm: RELEASE=Enterprise
-enterprise-rpm: NAME=VMware Greenplum Upgrade
+enterprise-rpm: NAME=VMware Tanzu Greenplum Upgrade
 enterprise-rpm: LICENSE=VMware Software EULA
 enterprise-rpm: enterprise-tarball rpm
-
-oss-rpm: RELEASE=Open Source
-oss-rpm: NAME=Greenplum Database Upgrade
-oss-rpm: LICENSE=Apache 2.0
-oss-rpm: oss-tarball rpm
 
 rpm:
 	[ ! -d rpm ] && mkdir rpm

@@ -20,15 +20,8 @@ verify_rpm_info() {
   [[ $info == *"Architecture: x86_64"* ]]
   [[ $info == *"Source RPM  : gpupgrade-${VERSION}-1"* ]]
   [[ $info == *"URL         : https://github.com/greenplum-db/gpupgrade"* ]]
-
-  if [ "$RELEASE" = "Open Source" ]; then
-      [[ $info == *"License     : Apache 2.0"* ]]
-      [[ $info == *"Summary     : Greenplum Database Upgrade"* ]]
-      return
-  fi
-
   [[ $info == *"License     : VMware Software EULA"* ]]
-  [[ $info == *"Summary     : VMware Greenplum Upgrade"* ]]
+  [[ $info == *"Summary     : VMware Tanzu Greenplum Upgrade"* ]]
 }
 
 verify_license_files() {
@@ -36,8 +29,7 @@ verify_license_files() {
   [ -s "$license_file" ]
 
   [[ $(head -1 "$license_file") =~ open_source_licenses.txt ]]
-  [[ $(head -3 "$license_file" | tail -1) == *"VMware Greenplum Upgrade ${VERSION}"* ]]
-  [[ $(tail -1 "$license_file") =~ "GREENPLUMUPGRADE" ]]
+  [[ $(head -3 "$license_file" | tail -1) == *"VMware Tanzu Greenplum Upgrade ${VERSION}"* ]]
 }
 
 main() {
