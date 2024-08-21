@@ -29,7 +29,6 @@ resources:
   source:
     uri: git@github.com:greenplum-db/gpdb.git
     private_key: ((server/gpdb-deploy-key))
-    submodules: none
     {{if eq . "7"}}
     branch: main
     {{else}}

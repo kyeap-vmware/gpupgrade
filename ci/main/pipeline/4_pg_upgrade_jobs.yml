@@ -9,8 +9,12 @@
           passed: [ build ]
         - get: gpdb_src_source
           resource: gpdb{{.Source}}_src
+          params:
+            submodules: none
         - get: gpdb_src_target
           resource: gpdb{{.Target}}_src
+          params:
+            submodules: none
         - get: rpm_gpdb_source
           resource: gpdb{{.Source}}_{{.Platform}}_rpm
           trigger: true

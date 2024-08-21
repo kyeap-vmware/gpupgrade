@@ -7,6 +7,8 @@
           trigger: true
         - get: gpdb_src_source
           resource: gpdb{{.Source}}_src
+          params:
+            submodules: none
     - task: unit-and-integration-tests
       config:
         platform: linux
@@ -29,6 +31,8 @@
           trigger: true
         - get: gpdb_src_source
           resource: gpdb{{.Source}}_src
+          params:
+            submodules: none
         - get: rpm_gpdb_source
           resource: gpdb{{.Source}}_{{.Platform}}_rpm
           trigger: true
