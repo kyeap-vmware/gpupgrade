@@ -6,8 +6,10 @@
             passed: [ validate ]
             trigger: true
           - get: gpupgrade_src
+            tags: [broadcom-internal]
           - get: saved_cluster_env_files
           - get: ccp_src
+            tags: [broadcom-internal]
           - get: terraform.d
             params:
               unpack: true
@@ -44,8 +46,10 @@
     plan:
       - in_parallel:
           - get: gpupgrade_src
+            tags: [broadcom-internal]
           - get: saved_cluster_env_files
           - get: ccp_src
+            tags: [broadcom-internal]
           - get: terraform.d
             params:
               unpack: true

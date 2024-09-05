@@ -6,6 +6,7 @@
             passed: [ data-migration-scripts ]
             trigger: true
           - get: gpupgrade_src
+            tags: [ broadcom-internal ]
           - get: saved_cluster_env_files
       - task: run_initialize
         config:
@@ -66,6 +67,7 @@
             passed: [ initialize ]
             trigger: true
           - get: gpupgrade_src
+            tags: [ broadcom-internal ]
           - get: saved_cluster_env_files
       - task: upgrade_cluster
         config:
@@ -113,6 +115,7 @@
             passed: [ upgrade ]
             trigger: true
           - get: gpupgrade_src
+            tags: [ broadcom-internal ]
           - get: saved_cluster_env_files
       - task: run_gpcheckcat
         config:

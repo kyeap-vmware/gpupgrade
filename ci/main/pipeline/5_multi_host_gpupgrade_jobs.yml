@@ -6,6 +6,7 @@
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
+          tags: [ broadcom-internal ]
           passed: [ build ]
         - get: rpm_gpdb_source
           resource: gpdb{{.Source}}_{{.Platform}}_rpm
@@ -16,6 +17,7 @@
           trigger: true
         {{- end }}
         - get: ccp_src
+          tags: [ broadcom-internal ]
         - get: terraform.d
           params:
             unpack: true

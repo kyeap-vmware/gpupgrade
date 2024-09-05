@@ -207,7 +207,7 @@ pipeline:
 	PIPELINE_VERSION="6" go generate ./ci/main
 	fly -t $(FLY_TARGET) set-pipeline -p $(PIPELINE_NAME) \
 		-c ci/main/generated/pipeline.yml \
-		-v gpupgrade-git-remote=git@github.com:greenplum-db/gpupgrade.git \
+		-v gpupgrade-git-remote=git@github.gwd.broadcom.net:TNZ/gp-gpupgrade.git \
 		-v gpupgrade-git-branch=$(BRANCH)
 
 pipeline7:
@@ -222,7 +222,7 @@ pipeline7:
 	PIPELINE_VERSION="7" go generate ./ci/main
 	fly -t $(FLY_TARGET) set-pipeline -p $(PIPELINE_NAME)-7 \
 		-c ci/main/generated/pipeline.yml \
-		-v gpupgrade-git-remote=git@github.com:greenplum-db/gpupgrade.git \
+		-v gpupgrade-git-remote=git@github.gwd.broadcom.net:TNZ/gp-gpupgrade.git \
 		-v gpupgrade-git-branch=$(BRANCH)
 
 functional-pipeline:
@@ -232,10 +232,10 @@ functional-pipeline:
 		ci/functional/pipeline/3_load_schema_data_migration_scripts.yml \
 		ci/functional/pipeline/4_initialize_upgrade_cluster_validate.yml \
 		ci/functional/pipeline/5_teardown_cluster.yml > ci/functional/generated/template.yml
-	go generate ./ci/functional
-	fly -t $(FLY_TARGET) set-pipeline -p $(PIPELINE_NAME) \
+	PIPELINE_VERSION="6" go generate ./ci/functional
+	fly -t $(FLY_TARGET) set-pipeline -p $(PIPELINE_NAME)-functional \
 		-c ci/functional/generated/pipeline.yml \
-		-v gpupgrade-git-remote=git@github.com:greenplum-db/gpupgrade.git \
+		-v gpupgrade-git-remote=git@github.gwd.broadcom.net:TNZ/gp-gpupgrade.git \
 		-v gpupgrade-git-branch=$(BRANCH)
 
 expose-pipeline:

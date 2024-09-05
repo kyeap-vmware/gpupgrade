@@ -4,6 +4,7 @@ jobs:
     plan:
       - in_parallel:
           - get: gpupgrade_src
+            tags: [broadcom-internal]
           - get: enterprise_rpm
             resource: gpupgrade_rpm
           - get: rpm_gpdb_source
@@ -13,6 +14,7 @@ jobs:
             resource: gpdb{{.Target}}_{{.Platform}}_rpm
           {{- end }}
           - get: ccp_src
+            tags: [broadcom-internal]
           - get: terraform.d
             params:
               unpack: true

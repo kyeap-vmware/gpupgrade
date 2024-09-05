@@ -2,6 +2,7 @@ jobs:
 - name: build
   plan:
     - get: gpupgrade_src
+      tags: [ broadcom-internal ]
       trigger: true
     - task: build
       config:
@@ -26,6 +27,7 @@ jobs:
 - name: lint
   plan:
     - get: gpupgrade_src
+      tags: [broadcom-internal]
       trigger: true
     - task: lint
       config:

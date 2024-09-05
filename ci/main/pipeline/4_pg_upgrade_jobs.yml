@@ -6,12 +6,15 @@
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
+          tags: [broadcom-internal]
           passed: [ build ]
         - get: gpdb_src_source
+          tags: [broadcom-internal]
           resource: gpdb{{.Source}}_src
           params:
             submodules: none
         - get: gpdb_src_target
+          tags: [broadcom-internal]
           resource: gpdb{{.Target}}_src
           params:
             submodules: none

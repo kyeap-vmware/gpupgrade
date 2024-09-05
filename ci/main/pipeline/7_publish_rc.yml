@@ -2,6 +2,7 @@
   plan:
     - in_parallel:
         - get: gpupgrade_src
+          tags: [broadcom-internal]
           trigger: true
           passed:
             - build

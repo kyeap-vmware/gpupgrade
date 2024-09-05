@@ -16,19 +16,21 @@ resource_types:
 
 resources:
 - name: gpupgrade_src
+  tags: [broadcom-internal]
   type: git
   source:
-    uri: ((upgrade/gpupgrade-git-remote))
-    private_key: ((upgrade/gpupgrade-deploy-key))
+    uri: ((gpupgrade-git-remote))
+    private_key: ((upgrade/gp-gpupgrade_rsa_read_deploy_key))
     branch: ((gpupgrade-git-branch))
     fetch_tags: true
 
 {{range .MajorVersions}}
 - name: gpdb{{.}}_src
+  tags: [broadcom-internal]
   type: git
   source:
-    uri: git@github.com:greenplum-db/gpdb.git
-    private_key: ((server/gpdb-deploy-key))
+    uri: git@github.gwd.broadcom.net:TNZ/gp-gpdb.git
+    private_key: ((server/gp-gpdb_rsa_read_deploy_key))
     {{if eq . "7"}}
     branch: main
     {{else}}
@@ -38,11 +40,12 @@ resources:
 
 
 - name: retail_demo_src
+  tags: [ broadcom-internal ]
   type: git
   source:
-    uri: git@github.com:pivotal/gp-industry-retail-demo.git
-    private_key: ((upgrade/retail-demo-git-key))
     branch: main
+    uri: git@github.gwd.broadcom.net:TNZ/gp-industry-retail-demo.git
+    private_key: ((upgrade/gp-industry-retail-demo_rsa_read_deploy_key))
 
 # gpupgrade tests with release candidates for the source and target version.
 # This allows for faster feedback for example when changes are made to
@@ -105,11 +108,12 @@ resources:
     regexp: release-candidates/enterprise/gpupgrade-(.*).rpm
 
 - name: ccp_src
+  tags: [ broadcom-internal ]
   type: git
   source:
     branch: main
-    private_key: ((gp-concourse-cluster-provisioner-git-key))
-    uri: git@github.com:pivotal/gp-concourse-cluster-provisioner.git
+    private_key: ((releng/gp-concourse-cluster-provisioner_rsa_read_deploy_key))
+    uri: git@github.gwd.broadcom.net:TNZ/gp-concourse-cluster-provisioner.git
 
 - name: terraform
   type: terraform

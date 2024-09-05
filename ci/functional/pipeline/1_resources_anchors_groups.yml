@@ -16,10 +16,11 @@ resource_types:
 
 resources:
   - name: gpupgrade_src
+    tags: [ broadcom-internal ]
     type: git
     source:
-      uri: ((upgrade/gpupgrade-git-remote))
-      private_key: ((upgrade/gpupgrade-deploy-key))
+      uri: ((gpupgrade-git-remote))
+      private_key: ((upgrade/gp-gpupgrade_rsa_read_deploy_key))
       branch: ((gpupgrade-git-branch))
       fetch_tags: true
 
@@ -32,7 +33,7 @@ resources:
       {{- if .DumpPath }}
       versioned_file: {{ .DumpPath }}
       {{- else }}
-      Set DUMP_PATH with `make DUMP_PATH=dump/5X/dump.sql.xz functional-pipeline` See ci/functional/README.md
+      # Set DUMP_PATH with `make DUMP_PATH=dump/5X/dump.sql.xz functional-pipeline` See ci/functional/README.md
       {{ end }}
     {{- end -}}
 
@@ -98,11 +99,12 @@ resources:
       regexp: release-candidates/enterprise/gpupgrade-(.*).rpm
 
   - name: ccp_src
+    tags: [ broadcom-internal ]
     type: git
     source:
       branch: main
-      private_key: ((gp-concourse-cluster-provisioner-git-key))
-      uri: git@github.com:pivotal/gp-concourse-cluster-provisioner.git
+      private_key: ((releng/gp-concourse-cluster-provisioner_rsa_read_deploy_key))
+      uri: git@github.gwd.broadcom.net:TNZ/gp-concourse-cluster-provisioner.git
 
   - name: terraform
     type: terraform

@@ -6,6 +6,7 @@
             passed: [ generate-cluster ]
             trigger: true
           - get: gpupgrade_src
+            tags: [ broadcom-internal ]
           - get: saved_cluster_env_files
           - get: schema_dump
       - task: load_schema
@@ -52,7 +53,7 @@
                     unxz --threads $(nproc) /tmp/dump.sql.xz
                     PGOPTIONS='--client-min-messages=warning' psql -v ON_ERROR_STOP=0 --quiet --dbname postgres -f /tmp/dump.sql
                 "
-
+{{end -}}
 {{range .FunctionalJobs}}
   - name: data-migration-scripts
     plan:
@@ -61,6 +62,7 @@
             passed: [ load-schema ]
             trigger: true
           - get: gpupgrade_src
+            tags: [ broadcom-internal ]
           - get: saved_cluster_env_files
       - task: generate_and_apply_data_migration_scripts
         config:
