@@ -112,9 +112,9 @@ resources:
       env:
         AWS_ACCESS_KEY_ID: ((tf-machine-access-key-id))
         AWS_SECRET_ACCESS_KEY: ((tf-machine-secret-access-key))
-        GOOGLE_CREDENTIALS: ((upgrade/{{.JobType}}/google-service-account-key))
+        GOOGLE_CREDENTIALS: ((dp/{{.JobType}}/google-service-account-key))
       vars:
-        project_id: ((upgrade/{{.JobType}}/google-project-id))
+        project_id: ((dp/{{.JobType}}/google-project-id))
       storage:
         access_key_id: ((tf-machine-access-key-id))
         secret_access_key: ((tf-machine-secret-access-key))
@@ -176,8 +176,8 @@ anchors:
       run:
         path: ccp_src/google/ccp_failed_test.sh
       params:
-        GOOGLE_CREDENTIALS: ((upgrade/{{.JobType}}/google-service-account-key))
-        GOOGLE_PROJECT_ID: ((upgrade/{{.JobType}}/google-project-id))
+        GOOGLE_CREDENTIALS: ((dp/{{.JobType}}/google-service-account-key))
+        GOOGLE_PROJECT_ID: ((dp/{{.JobType}}/google-project-id))
         GOOGLE_ZONE: us-central1-a
         AWS_ACCESS_KEY_ID: ((tf-machine-access-key-id))
         AWS_SECRET_ACCESS_KEY: ((tf-machine-secret-access-key))
