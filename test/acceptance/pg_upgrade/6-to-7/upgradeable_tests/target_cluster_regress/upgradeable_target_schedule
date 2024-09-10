@@ -1,4 +1,4 @@
-test: user_defined_aggregates user_defined_types encodings
+test: user_defined_aggregates user_defined_types encodings functions_with_mising_dep
 
 # 6 > 7 FIXME: comment out failing tests
 # test: aoco_dropped_col_and_encoding
