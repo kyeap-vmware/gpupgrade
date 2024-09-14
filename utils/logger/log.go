@@ -23,7 +23,7 @@ func Initialize(process string) {
 
 	// If more robust logging is needed consider using logutils, zap, zerolog, etc.
 	log.SetOutput(f)
-	log.SetPrefix(prefix())
+	log.SetPrefix(Prefix("INFO"))
 	log.SetFlags(log.Ldate | log.Ltime | log.Lmsgprefix)
 }
 
@@ -48,10 +48,10 @@ func LogPath(logDir, process string) string {
 }
 
 // prefix has the form PROGRAMNAME:USERNAME:HOSTNAME:PID [LOGLEVEL]:
-func prefix() string {
+func Prefix(level string) string {
 	currentUser, _ := user.Current()
 	host, _ := os.Hostname()
 
-	return fmt.Sprintf("gpupgrade:%s:%s:%06d [INFO]: ",
-		currentUser.Username, host, os.Getpid())
+	return fmt.Sprintf("gpupgrade:%s:%s:%06d [%s]: ",
+		currentUser.Username, host, os.Getpid(), level)
 }

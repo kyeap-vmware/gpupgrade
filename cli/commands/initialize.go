@@ -4,13 +4,18 @@
 package commands
 
 import (
+	"bufio"
+	"database/sql"
 	"errors"
 	"fmt"
+	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"golang.org/x/text/cases"
@@ -27,6 +32,7 @@ import (
 	"github.com/greenplum-db/gpupgrade/upgrade"
 	"github.com/greenplum-db/gpupgrade/utils"
 	"github.com/greenplum-db/gpupgrade/utils/errorlist"
+	"github.com/greenplum-db/gpupgrade/utils/logger"
 )
 
 func initialize() *cobra.Command {
@@ -170,6 +176,22 @@ func initialize() *cobra.Command {
 				initializeSubsteps, logdir, configPath,
 				sourcePort, sourceGPHome, targetGPHome, mode, diskFreeRatio, jobs, useHbaHostnames, dynamicLibraryPath, ports, hubPort, agentPort)
 
+			recGucTable, err := checkGUCsMeetRecommendedValues(sourceGPHome, sourcePort, jobs)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				// Print warning banner at the end if any gucs do not meet
+				// recommended values. It is deferred so it will still print if
+				// initialze fails early, which is often expected if users are
+				// fixing checks.
+				if recGucTable.NumLines() > 0 {
+					fmt.Println("\nWARNING: GUCS DO NOT MATCH RECOMMENDED VALUES")
+					recGucTable.Render()
+					fmt.Println()
+				}
+			}()
+
 			st, err := clistep.Begin(idl.Step_initialize, verbose, nonInteractive, confirmationText)
 			if err != nil {
 				return err
@@ -293,7 +315,12 @@ func initialize() *cobra.Command {
 				revertWarning = revertWarningText
 			}
 
-			return st.Complete(fmt.Sprintf(InitializeCompletedText, revertWarning))
+			err = st.Complete(fmt.Sprintf(InitializeCompletedText, revertWarning))
+			if err != nil {
+				return err
+			}
+
+			return nil
 		},
 	}
 
@@ -409,4 +436,194 @@ func addFlags(cmd *cobra.Command, flags map[string]string) error {
 	}
 
 	return nil
+}
+
+type gucRecommendation struct {
+	Name        string
+	Operator    string
+	Recommended string
+}
+
+// calculating recommended guc settings
+// returns a table of recommended gucs to be rendered at the end of initialize
+func checkGUCsMeetRecommendedValues(gphome string, port int, jobs int32) (*tablewriter.Table, error) {
+	db, err := connection.Bootstrap(idl.ClusterDestination_source, gphome, port)
+	defer func() {
+		if cErr := db.Close(); cErr != nil {
+			err = errorlist.Append(err, cErr)
+		}
+	}()
+	if err != nil {
+		return nil, err
+	}
+
+	memTotalKB, swapTotalKB, err := ReadMemoryStats()
+	if err != nil {
+		return nil, err
+	}
+
+	// max_statement_mem = (seghost_physical_memory) / (average_number_concurrent_queries)
+	recMaxStatementMemKB := float64(uint64(memTotalKB) / uint64(jobs))
+
+	// gp_vmem = ((SWAP + RAM) – (7.5GB + 0.05 * RAM)) / [ 1.7 | 1.17 ]
+	var recGpVmemKB float64
+	if memTotalKB >= (128 * (1 << 20)) {
+		// If the total system memory is equal to or greater than 256 GB, use this formula
+		recGpVmemKB = float64(float64(swapTotalKB+memTotalKB)-(float64(7.5*(1<<20))+0.05*float64(memTotalKB))) / float64(1.17)
+	} else {
+		recGpVmemKB = float64(float64(swapTotalKB+memTotalKB)-(float64(7.5*(1<<20))+0.05*float64(memTotalKB))) / float64(1.7)
+	}
+
+	// acting_primary_segments = segments per host + number of possible active mirrors
+	maxActingPrimarySegments, err := getMaxActingPrimarySegments(db)
+	if err != nil {
+		return nil, err
+	}
+
+	// statement_mem = ( <gp_vmem_protect_limit>GB * .9 ) / <max_expected_concurrent_queries>
+	recStatementMemKB := (recGpVmemKB * .9) / float64(jobs)
+
+	// gp_vmem_protect_limit = <gp_vmem> / <acting_primary_segments>
+	recGpVmemProtectLimitKB := recGpVmemKB / float64(maxActingPrimarySegments)
+
+	recStatementMemGB := fmt.Sprintf("%dGB", convertKBtoGB(recStatementMemKB))
+	recMaxStatementMemGB := fmt.Sprintf("%dGB", convertKBtoGB(recMaxStatementMemKB))
+	recGpVmemProtectLimitGB := fmt.Sprintf("%dGB", convertKBtoGB(recGpVmemProtectLimitKB))
+	gucList := []gucRecommendation{
+		{"gp_vmem_protect_limit", ">=", recGpVmemProtectLimitGB},
+		{"max_statement_mem", ">=", recMaxStatementMemGB},
+		{"statement_mem", ">=", recStatementMemGB},
+		{"max_locks_per_transaction", ">=", "512"},
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	var warnings []string
+	for _, guc := range gucList {
+		line, entry, err := checkGUC(db, guc)
+		if err != nil {
+			return nil, err
+		}
+		if line != "" {
+			warnings = append(warnings, line)
+			table.Append(entry)
+		}
+	}
+
+	if len(warnings) > 0 {
+		// output to log
+		log.SetPrefix(logger.Prefix("WARN"))
+		fmt.Println()
+		for _, line := range warnings {
+			// fmt.Printf("WARNING: %s\n", line) // print warning to screen in case of premature initialize fail and return
+			log.Println(line)
+		}
+		log.SetPrefix(logger.Prefix("INFO"))
+
+		// set table render settings for UI
+		table.SetHeader([]string{"GUC", "Current", "Recommended"})
+		table.SetAlignment(tablewriter.ALIGN_LEFT)
+	}
+
+	return table, nil
+}
+
+// Returns
+// 1. line to be logged
+// 2. table entry to be rendered
+// 3. err
+func checkGUC(db *sql.DB, guc gucRecommendation) (string, []string, error) {
+	query := fmt.Sprintf("SHOW %s", guc.Name)
+	rows, err := db.Query(query)
+	if err != nil {
+		return "", nil, err
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return "", nil, fmt.Errorf("No GUC value returned for %s", guc)
+	}
+	var actual string
+	if err := rows.Scan(&actual); err != nil {
+		return "", nil, err
+	}
+
+	if err := rows.Err(); err != nil {
+		return "", nil, err
+	}
+
+	var logLine string
+	var tableEntry []string
+	switch guc.Operator {
+	case ">=":
+		if !(actual >= guc.Recommended) {
+			logLine = fmt.Sprintf("GUC %s currently set at %s. Recommend >= %s", guc.Name, actual, guc.Recommended)
+			tableEntry = []string{guc.Name, actual, fmt.Sprintf(">= %s", guc.Recommended)}
+		}
+	}
+
+	return logLine, tableEntry, nil
+}
+
+// max_acting_primary_segments
+func getMaxActingPrimarySegments(db *sql.DB) (int, error) {
+	query := fmt.Sprintf("SELECT hostname, count(content) AS acting_primary_segments FROM gp_segment_configuration GROUP BY hostname ORDER BY 2;")
+	rows, err := db.Query(query)
+	if err != nil {
+		return -1, fmt.Errorf("acting primaries query fail: %s", err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return -1, fmt.Errorf("acting primaries no rows")
+	}
+
+	var actingPrimaries int
+	var hostname string
+	if err := rows.Scan(&hostname, &actingPrimaries); err != nil {
+		return -1, fmt.Errorf("acting primaries scan fail: %s", err)
+	}
+
+	return actingPrimaries, nil
+}
+
+// returns total memory and swap in kB
+func ReadMemoryStats() (memTotal uint64, swapTotal uint64, parseErr error) {
+	file, err := os.Open("/proc/meminfo")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+	bufio.NewScanner(file)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		key, value, err := parseMemInfoLine(scanner.Text())
+		if err != nil {
+			parseErr = err
+			return
+		}
+		switch key {
+		case "MemTotal":
+			memTotal = value
+		case "SwapTotal":
+			swapTotal = value
+		}
+	}
+	return
+}
+
+func parseMemInfoLine(raw string) (string, uint64, error) {
+	if string(raw[len(raw)-1]) == "0" {
+		return "", 0, nil
+	}
+	text := strings.ReplaceAll(raw[:len(raw)-2], " ", "")
+	keyValue := strings.Split(text, ":")
+	value, err := strconv.ParseUint(keyValue[1], 10, 64)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to read value from key '%s' in /proc/meminfo", keyValue[1])
+	}
+	return keyValue[0], value, nil
+}
+
+func convertKBtoGB(value float64) uint {
+	return uint(math.Round(float64(value) / (1 << 20)))
 }
