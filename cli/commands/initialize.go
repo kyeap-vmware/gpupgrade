@@ -214,7 +214,7 @@ func initialize() *cobra.Command {
 
 			generatedScriptsOutputDir, err := utils.GetDefaultGeneratedDataMigrationScriptsDir()
 			if err != nil {
-				return nil
+				return err
 			}
 
 			st.AlwaysRun(idl.Substep_generate_data_migration_scripts, func(streams step.OutStreams) error {
