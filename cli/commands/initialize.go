@@ -566,7 +566,7 @@ func checkGUC(db *sql.DB, guc gucRecommendation) (string, []string, error) {
 
 // max_acting_primary_segments
 func getMaxActingPrimarySegments(db *sql.DB) (int, error) {
-	query := fmt.Sprintf("SELECT hostname, count(content) AS acting_primary_segments FROM gp_segment_configuration GROUP BY hostname ORDER BY 2;")
+	query := "SELECT hostname, count(content) AS acting_primary_segments FROM gp_segment_configuration GROUP BY hostname ORDER BY 2"
 	rows, err := db.Query(query)
 	if err != nil {
 		return -1, fmt.Errorf("acting primaries query fail: %s", err)
