@@ -196,13 +196,13 @@ SELECT d.datname, r.rolname, split_part(unnest(s.setconfig),'=',1) AS guc FROM p
                             | all_nonupgradable_gucs_role  | gp_log_resqueue_priority_sleep_time             
                             | all_nonupgradable_gucs_role  | gp_mk_sort_check                                
                             | all_nonupgradable_gucs_role  | gp_partitioning_dynamic_selection_log           
-                            | all_nonupgradable_gucs_role  | gpperfmon_log_alert_level                       
                             | all_nonupgradable_gucs_role  | gp_perfmon_print_packet_info                    
                             | all_nonupgradable_gucs_role  | gp_resgroup_print_operator_memory_limits        
                             | all_nonupgradable_gucs_role  | gp_resource_group_enable_recalculate_query_mem  
                             | all_nonupgradable_gucs_role  | gp_sort_flags                                   
                             | all_nonupgradable_gucs_role  | gp_sort_max_distinct                            
                             | all_nonupgradable_gucs_role  | gp_use_synchronize_seqscans_catalog_vacuum_full 
+                            | all_nonupgradable_gucs_role  | gpperfmon_log_alert_level                       
                             | all_nonupgradable_gucs_role  | memory_spill_ratio                              
                             | all_nonupgradable_gucs_role  | optimizer_analyze_enable_merge_of_leaf_stats    
                             | all_nonupgradable_gucs_role  | optimizer_enable_dml_triggers                   
@@ -260,13 +260,13 @@ Role, Removed GUC :
   all_nonupgradable_gucs_role, gp_log_resqueue_priority_sleep_time
   all_nonupgradable_gucs_role, gp_mk_sort_check
   all_nonupgradable_gucs_role, gp_partitioning_dynamic_selection_log
-  all_nonupgradable_gucs_role, gpperfmon_log_alert_level
   all_nonupgradable_gucs_role, gp_perfmon_print_packet_info
   all_nonupgradable_gucs_role, gp_resgroup_print_operator_memory_limits
   all_nonupgradable_gucs_role, gp_resource_group_enable_recalculate_query_mem
   all_nonupgradable_gucs_role, gp_sort_flags
   all_nonupgradable_gucs_role, gp_sort_max_distinct
   all_nonupgradable_gucs_role, gp_use_synchronize_seqscans_catalog_vacuum_full
+  all_nonupgradable_gucs_role, gpperfmon_log_alert_level
   all_nonupgradable_gucs_role, memory_spill_ratio
   all_nonupgradable_gucs_role, optimizer_analyze_enable_merge_of_leaf_stats
   all_nonupgradable_gucs_role, optimizer_enable_dml_triggers
