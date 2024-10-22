@@ -206,7 +206,7 @@ func (p *Pool) ConnString() string {
 	return p.connString
 }
 
-func ExecuteCommands(cluster *Cluster, database string, commands []string, jobs int32, bar *mpb.Bar, gucs... string) error {
+func ExecuteCommands(cluster *Cluster, database string, commands []string, jobs int32, bar *mpb.Bar, gucs ...string) error {
 	var errs error
 
 	pool, err := NewPoolerFunc(Port(cluster.CoordinatorPort()), Database(database), Gucs(gucs), Jobs(jobs))

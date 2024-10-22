@@ -40,6 +40,10 @@ unit integration acceptance test: export PATH := $(CURDIR):$(PATH)
 unit:
 	go test -count=1 $(shell go list ./... | grep -v test/integration$$ | grep -v test/acceptance/gpupgrade$$ | grep -v test/acceptance/pg_upgrade$$)
 
+# Requirements
+# 1. a running gpdb cluster
+# 2. $GPHOME to be sourced
+# 3. $PGPORT to be sourced
 .PHONY: integration
 integration:
 	go test -count=1 ./test/integration

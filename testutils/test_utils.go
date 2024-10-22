@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -535,4 +536,24 @@ func MustApplySQLFile(t *testing.T, gphome string, port string, path string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func GetConnStrFromEnv(t *testing.T, database string) string {
+	gphome := os.Getenv("GPHOME")
+	if gphome == "" {
+		t.Fatal("GPHOME is not set.")
+	}
+
+	pgportStr := os.Getenv("PGPORT")
+	if gphome == "" {
+		t.Fatal("PGPORT is not set.")
+	}
+	pgport, err := strconv.Atoi(pgportStr)
+	if err != nil {
+		t.Fatalf("Bad PGPORT. Err: %s", err)
+	}
+
+	connStr := fmt.Sprintf("postgresql://localhost:%d/%s?search_path=public", pgport, database)
+
+	return connStr
 }

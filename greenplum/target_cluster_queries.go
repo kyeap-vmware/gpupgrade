@@ -96,7 +96,7 @@ func ReindexDatabase(target *Cluster, database string, jobs int32, progressBar *
 		}
 	}()
 
-	reindexCommands, err := getReindexCommands(db)
+	reindexCommands, err := GetReindexCommands(db)
 	if err != nil {
 		return err
 	}
@@ -116,16 +116,21 @@ func ReindexDatabase(target *Cluster, database string, jobs int32, progressBar *
 	return nil
 }
 
-func getReindexCommands(db *sql.DB) ([]string, error) {
+func GetReindexCommands(db *sql.DB) ([]string, error) {
 	var reindexCommands []string
 
 	invalidIndexesQuery := `
-	SELECT 
+	SELECT
 	'REINDEX INDEX ' || quote_ident(n.nspname) || '.' || quote_ident(c1.relname) || ';' as command
 	FROM pg_catalog.pg_class c1
 	JOIN pg_index i on i.indexrelid=c1.oid
 	JOIN pg_namespace n on n.oid=c1.relnamespace
-	WHERE indisvalid=false;`
+	JOIN pg_stat_last_operation slo on i.indexrelid = slo.objid
+	WHERE indisvalid=false
+	AND slo.staactionname='CREATE'
+	AND slo.stasubtype='INDEX'
+	ORDER BY slo.statime DESC
+	`
 
 	rows, err := db.Query(invalidIndexesQuery)
 	if err != nil {
