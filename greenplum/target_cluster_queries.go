@@ -64,7 +64,7 @@ func ReindexInvalidIndexes(target *Cluster, jobs int32, output io.Writer) error 
 	var err error
 
 	if target.Version.Major != 6 {
-		return xerrors.Errorf("reindex invalid indexes should only be executed on a GPDB6 target cluster") 
+		return xerrors.Errorf("reindex invalid indexes should only be executed on a GPDB6 target cluster")
 	}
 
 	databases, err := target.GetDatabases()
@@ -106,7 +106,7 @@ func ReindexDatabase(target *Cluster, database string, jobs int32, progressBar *
 	}
 
 	bar := utils.AddBar(progressBar, len(reindexCommands), fmt.Sprintf("Database: %s", database))
-		
+
 	err = ExecuteCommands(target, database, reindexCommands, jobs, bar)
 	if err != nil {
 		bar.Abort(false)
@@ -149,7 +149,6 @@ func getReindexCommands(db *sql.DB) ([]string, error) {
 
 	return reindexCommands, nil
 }
-
 
 // Rebuilds the tsvector tables in the cluster.
 // Refer to pg_upgrade:old_8_3_rebuild_tsvector_tables
@@ -267,7 +266,7 @@ func getTSVectorCommands(db *sql.DB) ([]string, error) {
 		if tsvectorRes.IndexName.Valid {
 			command += fmt.Sprintf("%s;\n", tsvectorRes.IndexDef.String)
 		}
-	
+
 		commands = append(commands, command)
 	}
 
@@ -277,7 +276,6 @@ func getTSVectorCommands(db *sql.DB) ([]string, error) {
 	}
 	return commands, nil
 }
-
 
 func AnalyzeCluster(target *Cluster, jobs int32, output io.Writer) error {
 	var err error
@@ -354,7 +352,7 @@ func AnalyzeDatabase(target *Cluster, database string, jobs int32, progressBar *
 		rootPartitionCmds = append(rootPartitionCmds, command)
 	}
 
-	bar := utils.AddBar(progressBar, len(dataTableCmds) + len(rootPartitionCmds), fmt.Sprintf("Database: %s", database))
+	bar := utils.AddBar(progressBar, len(dataTableCmds)+len(rootPartitionCmds), fmt.Sprintf("Database: %s", database))
 
 	// Analyze the data tables first, then the root partitions.
 	// Suppress generating root stats for every partition.
